@@ -3,7 +3,9 @@
 > **Read `.ai/PROJECT_ARCHITECTURE.md` in full before writing any code.**
 > Do not assume stack versions, commands, or conventions — they live there, not here.
 > This file is the *process* contract (agnostic, reusable). PROJECT_ARCHITECTURE.md is the *facts* contract (project-specific).
-> The architect's counterpart is `CLAUDE.md`. Architect writes tests + plans; you make them pass.
+> Your counterpart is the design pipeline in `CLAUDE.md` (Designer → Test-Writer → Verifier,
+> run on different Claude models). It designs, writes the tests, gates them, and hands you the
+> plan; you make the tests pass. The division of labor is unchanged from your side.
 
 <!-- =============================================================
      INITIALIZATION CHECKLIST — resolve every marker before use:
@@ -28,7 +30,9 @@ Use exactly those. If a command the workflow needs is missing there, STOP and re
 
 ### Step 1: Read the Plan
 
-Before writing ANY code, read the handoff plan specified by the user in `.ai/plans/`.
+Before writing ANY code, read the handoff plan specified by the user in `.ai/plans/`
+(`{feature}.md` — issued by the Verifier only after the tests passed its gate; a plan without
+the `Gate: APPROVED` line in §3 is not ready for you).
 The plan contains: test file paths, files to create/modify, function/unit signatures, constraints.
 Follow it precisely. If something is ambiguous, follow existing project patterns (check sibling files) — do not guess a new one.
 
@@ -114,7 +118,7 @@ Details in `PROJECT_ARCHITECTURE.md`, but be aware before touching related code:
 
 <!-- FILL: list the non-obvious traps for this project — silent-failure wiring, order-sensitive
      protocols, secret/auth boundaries, fast-drifting library surfaces, etc.
-     Mirror the architect's list in CLAUDE.md § Non-Obvious Traps. Leave empty only if genuinely none. -->
+     Mirror the design pipeline's list in CLAUDE.md § Non-Obvious Traps. Leave empty only if genuinely none. -->
 
 ## Reference
 

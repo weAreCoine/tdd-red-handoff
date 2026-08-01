@@ -7,6 +7,10 @@ description: Bootstrap CLAUDE.md / AGENTS.md / PROJECT_ARCHITECTURE.md for this 
 Bootstrap the three-file architecture-doc system for **this** repository from the templates in
 `.ai/templates/`. Work the phases **in order** — later ones depend on earlier output.
 
+> **Model check first.** This command is an escalation-tier task (`CLAUDE.md § Escalation`,
+> trigger 4): it must run on **Claude Fable 5**. If the session is on another model, tell the
+> user and stop before Phase 0.
+
 The templates carry their own instructions as markers. Treat them as binding:
 
 - `<!-- FILL: … -->` — an instruction to you. Satisfy it, then **delete the comment**. None may survive.
@@ -18,7 +22,8 @@ The templates carry their own instructions as markers. Treat them as binding:
 ## Phase 0 — Preconditions
 
 - Check `.ai/templates/` has `CLAUDE.template.md`, `AGENTS.template.md`,
-  `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`. If any is missing, STOP and tell the user.
+  `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`, `test_plan_template.md`.
+  If any is missing, STOP and tell the user.
 - Check the live docs don't already exist (`CLAUDE.md`, `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`).
   If they do, this is a re-init: ask whether to update in place or abort. **Never overwrite a filled file
   blindly.**
@@ -64,7 +69,8 @@ cp .ai/templates/AGENTS.template.md            ./AGENTS.md
 cp .ai/templates/PROJECT_ARCHITECTURE.template.md ./.ai/PROJECT_ARCHITECTURE.md
 ```
 
-`plan_template.md` stays in `.ai/templates/` — it's referenced there, not copied to root.
+`plan_template.md` and `test_plan_template.md` stay in `.ai/templates/` — they're referenced
+there per feature, not copied to root.
 
 ## Phase 4 — Fill (the work)
 
@@ -106,4 +112,5 @@ are fine; report them as open decisions.
 Tell the user:
 - The architecture model set (A/B/C) and where it's reflected.
 - Any `TODO`s left open, with why (deferred decision vs unreadable fact).
-- That `.ai/plans/` is ready and the architect/implementer TDD loop can start.
+- That `.ai/plans/` is ready and the pipeline can start: Designer (Fable 5) → Test-Writer
+  (Sonnet 5) → Verifier (Opus 5) → Implementer (Codex), per `CLAUDE.md § Pipeline`.

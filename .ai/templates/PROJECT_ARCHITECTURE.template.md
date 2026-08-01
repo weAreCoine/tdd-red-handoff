@@ -1,6 +1,7 @@
 # PROJECT_ARCHITECTURE.md
 
-> Project-specific facts. The agnostic *process* contract lives in `CLAUDE.md` (architect) and `AGENTS.md` (implementer).
+> Project-specific facts. The agnostic *process* contract lives in `CLAUDE.md` (the design
+> pipeline: Designer / Test-Writer / Verifier) and `AGENTS.md` (implementer).
 > This file is the single source of truth for everything those two files deliberately refuse to guess:
 > stack versions, commands, API contract, runtime wiring, directory map.
 
@@ -29,7 +30,7 @@
      while filling the rest, then LEAVE IT IN PLACE (it stays — it's not scaffolding,
      it's a live guard). Verify each invariant holds before declaring the file done. -->
 
-1. **Command names are an API.** `CLAUDE.md` Phase 4 and `AGENTS.md` Steps 3–4 reference toolchain commands **by name**:
+1. **Command names are an API.** `CLAUDE.md` Phases 2, 3 and 5 and `AGENTS.md` Steps 3–4 reference toolchain commands **by name**:
    `test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`. The § Toolchain table below
    MUST define every one of these names. If you rename one, you break the process contract. If a tool genuinely
    doesn't exist for this stack, keep the row and mark it `TODO` / `N/A` with a reason — never silently drop it.
@@ -251,7 +252,7 @@ exists, so the implementer follows it verbatim instead of reconstructing it.
 
 ## Documentation
 
-<!-- FILL: where docs/ADRs live and the registration rule, matching CLAUDE.md Phase 4 step 6.
+<!-- FILL: where docs/ADRs live and the registration rule, matching CLAUDE.md Phase 5 step 6.
      If ADRs are used, name the directory and the index file they must be registered in. -->
 
 - ADRs: TODO (directory), registered in TODO (index).

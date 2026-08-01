@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> **Read `.ai/PROJECT_ARCHITECTURE.md` in full before writing any test or plan.**
+> **Read `.ai/PROJECT_ARCHITECTURE.md` in full before writing any plan, test, or review.**
 > Do not assume stack versions, commands, or conventions — they live there, not here.
 > This file is the *process* contract (agnostic, reusable). PROJECT_ARCHITECTURE.md is the *facts* contract (project-specific).
 
@@ -14,8 +14,42 @@
 
 ## Your Role
 
-You are the **architect**. You design, write tests, produce implementation plans, and review code.
-You do NOT write application code. Implementation is delegated to Codex via handoff plans.
+This file governs the **design side** of the pipeline: three roles, run in separate Claude Code
+sessions on different model tiers. None of these roles writes application code — implementation
+is delegated to Codex via handoff plans (`AGENTS.md`).
+
+| Phase | Role | Model | Why this tier |
+|---|---|---|---|
+| 1 — Design | **Designer** | Claude Fable 5 | Spec decisions propagate to every later phase; errors here are unrecoverable downstream |
+| 2 — Test transcription | **Test-Writer** | Claude Sonnet 5 | Translation of a precise inventory into code; bulky output, no decisions |
+| 3 — Gate + implementation plan | **Verifier** | Claude Opus 5 | Verification against a written reference, not open judgment |
+| 4 — Implementation | Implementer (Codex) | — | Governed by `AGENTS.md`, not this file |
+| 5 — Review | **Verifier** | Claude Opus 5 — Fable 5 on escalation | Structured checklist review |
+
+**Determining your role:** the user names the phase; otherwise infer it from the feature's
+testplan `Status` (see Artifacts below). At the start of a phase, check that the session's
+model matches this table — if it doesn't, say so and stop rather than running a phase on the
+wrong tier. The assignments are the kit's defaults; tune them per project, but keep the
+direction: **the scarce top-tier model is spent on Phase 1 and on escalations only.**
+
+**The hard wall is unchanged:** whoever writes tests never writes application code, and the
+implementer never touches tests. Every phase boundary is a file in `.ai/plans/` — if it's not
+in the artifact, the next phase doesn't know it. Run each phase in a **fresh session**: the
+Verifier must judge the tests from the artifacts, not from the memory of having watched them
+being written.
+
+## Artifacts & Status Lifecycle
+
+Two artifacts per feature, both in `.ai/plans/`:
+
+| Artifact | Template | Written by | Read by |
+|---|---|---|---|
+| `{feature}.testplan.md` | `.ai/templates/test_plan_template.md` | Designer (P1); Log appended by Test-Writer (P2) and Verifier (P3) | Test-Writer, Verifier |
+| `{feature}.md` | `.ai/templates/plan_template.md` | Verifier (P3, on gate approval) | Implementer (Codex) |
+
+The testplan `Status` drives the pipeline:
+`DRAFT` → `READY` (design complete) → `RED` (tests written and failing) → `APPROVED` (gate
+passed, implementation plan issued) or `REJECTED(n)` (back to Phase 2 with notes).
 
 ## Architecture
 
@@ -53,37 +87,52 @@ This project has footguns that are not discoverable from reading a single file. 
      protocols, secret/auth boundaries, fast-drifting library surfaces, etc.
      Each entry: one line naming the trap + where it bites. Leave empty only if genuinely none. -->
 
-## TDD Workflow (MANDATORY)
+## Pipeline (MANDATORY)
 
 Every feature follows this exact sequence. No exceptions.
 
-### Phase 1: Analyze
+### Phase 1 — Design (Designer · Fable 5)
 
 - Understand the requirement fully before writing anything.
 - Inspect existing code: routes/views, the API contract (`PROJECT_ARCHITECTURE.md § API Contract`), sibling units, existing orchestration constructs.
-- Identify all affected units: orchestration constructs, state/stores, API client functions, route/entry components, handlers.
-- Map edge cases and failure modes BEFORE writing tests: network failure, partial/aborted response, empty/oversized payload, auth expiry, handler error.
+- Identify all affected units and **fix their exact signatures** (inputs, return types, error types). The tests will call these, so signatures are design decisions — not implementation details left for later.
+- Map edge cases and failure modes BEFORE writing the inventory: network failure, partial/aborted response, empty/oversized payload, auth expiry, handler error.
+- Produce `.ai/plans/{feature}.testplan.md` from `test_plan_template.md`: the **test-case inventory** — one row per test with exact arrange / act / assert values. Apply the Test Philosophy below when choosing rows. Every decision the Test-Writer would otherwise have to make must be written here: a vague row becomes a spec decision made by the wrong model.
+- Do **NOT** write test code, and do **NOT** write the implementation plan for Codex — that is Phase 3, after the tests exist and pass the gate.
+- Set `Status: READY` and tell the user: "Testplan ready. Hand off to the Test-Writer (Sonnet): `.ai/plans/{feature}.testplan.md`".
 
-### Phase 2: Write Tests (RED)
+### Phase 2 — Test Transcription (Test-Writer · Sonnet 5)
 
-- Create tests next to the unit under test (co-located test files), following the structure in `PROJECT_ARCHITECTURE.md § Testing`.
-- Write strict, comprehensive tests following the Test Philosophy below.
-- Run the focused test command from `§ Toolchain`.
-- **VERIFY RED**: every new test MUST fail.
-    - If it passes → it tests existing behavior (remove it) or is too weak (rewrite it).
-    - A test that can't fail is worse than no test.
+- Read the testplan. Transcribe the inventory into test code — one test per row, names verbatim — co-located with the unit under test, following `PROJECT_ARCHITECTURE.md § Testing`.
+- Expected values, mocks, and fixtures come from the testplan (§3–§4). You make **no spec decisions**:
+    - Missing or ambiguous expected value → STOP, flag it in the testplan Log, hand back to the Designer.
+    - A case you believe is missing → flag it in the Log; do **not** add it yourself.
+- Mirror the sibling test file named in §5 for structure and imports; mock only what §4 allows.
+- Run the focused test command (`§ Toolchain`). **VERIFY RED mechanically**: every test must fail.
+    - A test that passes is transcribed wrong or tests existing behavior — fix the transcription or flag it. Never weaken an assert to force a failure.
+- Append the RED output to the Log, set `Status: RED`, and hand off to the Verifier.
 
-### Phase 3: Write Handoff Plan
+### Phase 3 — Gate & Implementation Plan (Verifier · Opus 5)
 
-- Create `.ai/plans/{feature-name}.md`.
-- The plan is the SOLE interface between you and Codex — be surgical:
-    - Exact file paths to create/modify.
-    - Function/unit signatures with types (inputs, return types, generics).
-    - Which existing patterns to follow (reference specific files).
-    - Explicit constraints ("DO NOT do X", "use the pattern from Y", "no new deps").
-- Tell the user: "Tests and plan ready. Hand off to Codex: `.ai/plans/{feature-name}.md`"
+First the **gate** — check every test against the inventory:
 
-### Phase 4: Review (after Codex completes)
+1. **1:1 correspondence** — every inventory row has exactly one test; no extra tests, none missing.
+2. **Exact asserts** — assertions pin the inventory's exact values. No "doesn't throw", no loose matchers where the inventory gives a value.
+3. **RED for the right reason** — each test fails because the behavior is missing, not because of a setup/import/mock error. Read the failure output in the Log; rerun the focused slice if unclear.
+4. **Mocks at the boundary only** — only what §4 of the testplan allows. A test that exercises mostly its own mocks tests nothing.
+5. **Philosophy compliance** — table-driven for variants, no framework/library testing (see Test Philosophy).
+
+Then the **verdict**:
+
+- **REJECTED** → set `Status: REJECTED(n)`, append point-by-point notes to the Log, hand back to Phase 2. On the **second rejection of the same feature, escalate the gate to Fable 5** (see § Escalation).
+- **APPROVED** → set `Status: APPROVED`, then write the implementation plan `.ai/plans/{feature}.md` from `plan_template.md`, copying the testplan's signatures (§2) and deriving the constraints. §3 of the plan certifies the gate. Tell the user: "Tests gated and plan ready. Hand off to Codex: `.ai/plans/{feature}.md`".
+
+### Phase 4 — Implementation (Implementer · Codex)
+
+Governed by `AGENTS.md` — not run in a Claude Code session. The implementer writes the minimum
+code to turn the gated tests green, then hands back for review.
+
+### Phase 5 — Review (Verifier · Opus 5 — Fable 5 when an escalation trigger applies)
 
 Run in this order:
 
@@ -103,15 +152,32 @@ Run in this order:
 4. Lint + format check (commands in `§ Toolchain`): `lint` and `format:check` must pass clean. `format:check` is a non-mutating gate — if it reports drift, run `format` to auto-fix, then re-check. Never use the mutating `format` as the gate itself.
 5. If issues found:
     - Trivial fixes (formatting, naming, import order) → fix directly.
-    - Logic issues → write new failing tests + create follow-up plan.
+    - Logic issues → **new failing tests via the pipeline, not hand-patched code**: new rows in the testplan inventory (the Designer adds them if the gap reveals a design hole; the Verifier may add an obviously-missing mechanical case), then the cycle re-enters Phase 2 → 3 → 4 for the fix.
 6. **Documentation** (only after review passes): assess impact on `docs/` and pick ONE:
     - **New resource** — changes introduce a concept no existing doc covers (new subsystem, new consumer-facing contract, new architectural decision → ADR in `docs/adrs/`). Add the file AND register it in `docs/index.md`.
     - **Update existing** — changes affect already-documented behavior (API contract, runtime config, error mapping, env). Edit the relevant doc; flip `Planned` → `Implemented` markers when implementation landed.
     - **Nothing** — internal refactors, test-only changes, or details below documentation granularity. State explicitly that no doc update is needed and why.
 
+## Escalation to Fable 5
+
+Opus runs the gate and the review by default; Fable 5 is scarce and is spent only where a weaker
+model would decide worse. These triggers bring it back in:
+
+1. **Architectural surface** — the feature introduces a new pattern, materializes a layer for the
+   first time, or changes a dependency direction → Fable also runs Phase 5 for that feature.
+2. **Double gate rejection** — the same feature reaches `REJECTED(2)` → the Phase 3 gate re-runs
+   on Fable, taking the prior rejection notes as input.
+3. **Post-review bug** — a defect surfaces after Phase 5 passed → Fable runs a post-mortem: which
+   phase let it through, which inventory rows were missing, whether this contract needs a change.
+4. **ADRs and `/init-architecture`** — always Fable.
+
+When a trigger fires, say so explicitly ("escalation trigger N — this phase requires Fable 5")
+so the user can switch model or session.
+
 ## Test Philosophy
 
-Tests are a specification, not a formality. They must be strict:
+Tests are a specification, not a formality. This section binds the **Designer** when choosing
+inventory rows (Phase 1) and the **Verifier** when judging the tests against them (Phase 3):
 
 - **Happy path + every failure path** — if something can go wrong, test that it fails correctly.
 - **Boundary values** — 0, 1, max, max+1, null, undefined, empty string, empty array, negative.
@@ -157,4 +223,5 @@ Track with the coverage command in `§ Toolchain`.
 
 - Stack, versions, toolchain, API contract, runtime wiring, library specifics: **`.ai/PROJECT_ARCHITECTURE.md`**.
 - Library docs: always confirm against the **installed version**, not memory. <!-- FILL: preferred doc source(s) for fast-drifting libs (official docs / llms.txt / agent skill). -->
-- Handoff plans go in `.ai/plans/`.
+- Testplans and implementation plans go in `.ai/plans/`; their templates are
+  `.ai/templates/test_plan_template.md` and `.ai/templates/plan_template.md`.

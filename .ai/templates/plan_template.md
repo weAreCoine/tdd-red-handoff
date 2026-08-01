@@ -1,12 +1,18 @@
 # Plan: {feature-name}
 
 <!-- =============================================================
-     HANDOFF PLAN — the SOLE interface between architect (CLAUDE.md)
-     and implementer (AGENTS.md). The implementer does ONLY what this
-     file says. Ambiguity here becomes a guess there, so be surgical.
+     HANDOFF PLAN — the SOLE interface between the design pipeline
+     (CLAUDE.md) and the implementer (AGENTS.md). Written by the
+     VERIFIER in Phase 3, only after the tests passed the gate. The
+     implementer does ONLY what this file says. Ambiguity here becomes
+     a guess there, so be surgical.
+
+     Signatures and intent come from the feature's testplan
+     (.ai/plans/{feature-name}.testplan.md) — copy them verbatim,
+     don't re-derive them.
 
      CONVENTIONS:
-       <!-- FILL: ... -->   instruction to the architect filling this plan.
+       <!-- FILL: ... -->   instruction to the Verifier filling this plan.
                             Obey, then DELETE. None may survive in the
                             finished plan.
        {placeholder}        replace with the concrete value.
@@ -15,8 +21,8 @@
        grep -nE 'FILL:|\{[a-z-]+\}' .ai/plans/{feature-name}.md   # must be empty
      ============================================================= -->
 
-> **Status:** RED (tests written and failing) — ready for implementation.
-> **Architect:** tests + this plan are done. **Implementer:** make the listed tests pass, nothing more.
+> **Status:** RED (tests written, failing, and gate-APPROVED) — ready for implementation.
+> **Design pipeline:** testplan, tests, and this plan are done. **Implementer:** make the listed tests pass, nothing more.
 
 ## 1. Goal
 
@@ -45,12 +51,15 @@
 <!-- FILL: list each test file and the behaviors it pins. The implementer runs these and makes them
      green. State the focused-test command (from PROJECT_ARCHITECTURE § Toolchain) so they can run
      exactly this slice. Confirm RED was verified — if any test passed before implementation, it's
-     wrong (see CLAUDE.md Phase 2) and must not ship in this plan. -->
+     wrong (see CLAUDE.md Phase 2) and must not ship in this plan. The gate line certifies YOUR
+     Phase 3 verdict — a plan without an APPROVED gate must not exist. -->
 
+- **Source testplan:** `.ai/plans/{feature-name}.testplan.md`
 - **Test files:**
   - `{path}.test.{ext}` — covers: {happy path, failure paths, boundaries, async/abort states it pins}
 - **Run this slice:** `{focused test command with pattern}`
 - **RED verified:** {yes — all listed tests fail as written}
+- **Gate:** APPROVED — {date}, all five gate checks passed (CLAUDE.md Phase 3)
 
 ## 4. Implementation Spec
 
@@ -86,7 +95,7 @@
 
 ## 6. Definition of Done
 
-<!-- FILL: the exit checklist. Mostly fixed (mirrors CLAUDE.md Phase 4 / AGENTS.md Step 3–4) but
+<!-- FILL: the exit checklist. Mostly fixed (mirrors CLAUDE.md Phase 5 / AGENTS.md Step 3–4) but
      restate it so the implementer has one place to check against. Adjust only if this feature has
      an extra gate. -->
 
