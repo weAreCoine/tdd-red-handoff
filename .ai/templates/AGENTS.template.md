@@ -100,7 +100,7 @@ Do NOT improvise solutions outside the plan's scope.
 
 ## Layered Architecture
 
-> The architect's principle is in `CLAUDE.md § Architecture`; the concrete directory map is in `PROJECT_ARCHITECTURE.md § Conventions`. This is the behavioral rule for you.
+> The design pipeline's principle is in `CLAUDE.md § Architecture`; the concrete directory map is in `PROJECT_ARCHITECTURE.md § Conventions`. This is the behavioral rule for you.
 >
 > [[DECISION: keep this in sync with the structural model chosen in CLAUDE.md
 >   (A flat MVCS / B domain-partitioned / C other). Delete the branches not in use. ]]

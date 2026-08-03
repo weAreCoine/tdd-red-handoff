@@ -109,6 +109,25 @@ cp -r .ai .claude /path/to/your/project/
 
 When it finishes you'll have `CLAUDE.md`, `AGENTS.md`, and `.ai/PROJECT_ARCHITECTURE.md` filled for your project, and `.ai/plans/` ready for the first handoff.
 
+### Migrating from the two-role kit
+
+If a project was bootstrapped with the previous version of this kit (a single **architect** role
+plus the implementer — no testplan, no gate), don't re-init it: the filled facts are the
+expensive part and `/init-architecture` would rebuild them from scratch. Instead:
+
+```bash
+# 1. Re-copy the kit's directories (overwrites templates & commands only — never the live docs)
+cp -r .ai .claude /path/to/your/project/
+
+# 2. From your project, in Claude Code (on Claude Fable 5), with a clean working tree:
+/migrate-architecture
+```
+
+`/migrate-architecture` rebuilds the live docs from the new templates while carrying every
+project fact over **unchanged** (architecture model, coverage floor, traps, conventions), and
+asks you what to do with in-flight plans: grandfather them as-is, or have the Designer
+retro-write their testplan so they re-enter the pipeline through the gate.
+
 ---
 
 ## What the init asks you
@@ -169,6 +188,7 @@ The templates carry their own filling instructions. Three markers, three lifecyc
 .claude/
   commands/
     init-architecture.md          # the bootstrap slash command
+    migrate-architecture.md       # upgrade a two-role-kit project to the pipeline
 ```
 
 ---
