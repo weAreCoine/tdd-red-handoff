@@ -2,7 +2,7 @@
 
 A small, opinionated convention for running a **test-driven, multi-model agent pipeline** on a software project: a top-tier model **designs and specifies the tests**, cheaper models **transcribe and gate them**, and a separate implementer **makes them pass**. Roles never trade places, and a single project-facts file keeps them — and you — honest.
 
-This repo gives you the templates and a single Claude Code slash command to bootstrap the system in any new project.
+This repo gives you the templates and two Claude Code slash commands: `/init-architecture` bootstraps the system in any new project, `/migrate-architecture` upgrades a project running the kit's previous two-role version.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -84,7 +84,7 @@ decide worse. Four triggers bring it back in (the full text lives in `CLAUDE.md 
 2. **Double gate rejection** — the same feature is rejected twice at the gate → the gate re-runs
    on Fable.
 3. **Post-review bug** — a defect surfaces after a passed review → Fable runs the post-mortem.
-4. **ADRs and `/init-architecture`** — always Fable.
+4. **ADRs, `/init-architecture`, `/migrate-architecture`** — always Fable.
 
 Two loops close the pipeline: a **gate bounce** (rejection sends the tests back to the
 Test-Writer with point-by-point notes), and a **review loop** (a logic issue found in review

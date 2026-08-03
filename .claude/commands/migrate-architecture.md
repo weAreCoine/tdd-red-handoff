@@ -21,8 +21,8 @@ traps, coverage floor) were expensive to establish at init and must survive **un
 fact changes during this migration, that is a bug in the migration, not an improvement.
 
 > **Model check first.** This command rewrites the process contract — an escalation-tier task
-> (`CLAUDE.md § Escalation`, trigger 4, same class as `/init-architecture`): it must run on
-> **Claude Fable 5**. If the session is on another model, tell the user and stop before Phase 0.
+> (`CLAUDE.md § Escalation`, trigger 4): it must run on **Claude Fable 5**. If the session is
+> on another model, tell the user and stop before Phase 0.
 
 ## Phase 0 — Preconditions
 

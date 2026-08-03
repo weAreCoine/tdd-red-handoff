@@ -169,7 +169,7 @@ model would decide worse. These triggers bring it back in:
    on Fable, taking the prior rejection notes as input.
 3. **Post-review bug** — a defect surfaces after Phase 5 passed → Fable runs a post-mortem: which
    phase let it through, which inventory rows were missing, whether this contract needs a change.
-4. **ADRs and `/init-architecture`** — always Fable.
+4. **ADRs, `/init-architecture`, and `/migrate-architecture`** — always Fable.
 
 When a trigger fires, say so explicitly ("escalation trigger N — this phase requires Fable 5")
 so the user can switch model or session.
