@@ -45,6 +45,9 @@
    other two — prefer not to.
 5. **Secrets boundary is absolute.** § Auth & Secrets must restate the no-secret-in-frontend rule; it is asserted in
    both `CLAUDE.md` and `AGENTS.md` and cannot be relaxed by a project fact.
+6. **Model names live only in § Model Roster.** `CLAUDE.md` and `AGENTS.md` refer to models by role
+   ("the Designer's model") and resolve them in the roster below — the only place a concrete model name may
+   appear. Record changes with `/update-models-roster`; never inline a model name into a process file.
 
 ## Overview
 
@@ -117,6 +120,23 @@ Pinned from the manifest:
 <!-- FILL: note any scope caveat that affects how a command behaves — e.g. formatter ignores docs,
      coverage excludes scaffold files, focused-test filters by path substring. One line each.
      These prevent the implementer from misreading a green/clean result. Delete if none. -->
+
+## Model Roster
+
+<!-- FILL: prefilled with the kit's current defaults — keep them at init unless the user asks
+     otherwise (no question needed; changing them later is /update-models-roster's job).
+     Then delete this comment. -->
+
+> Referenced **by role** from `CLAUDE.md` and `AGENTS.md` — the only place concrete model names
+> live (Contract §6). Update with `/update-models-roster`: new names come from the user, never
+> from an agent's memory.
+
+| Role | Capability profile (what to pick) | Current model |
+|------|-----------------------------------|---------------|
+| Designer | strongest reasoning tier available — spec decisions propagate downstream | Claude Fable 5 |
+| Verifier | strong review tier — checklist verification against a written reference | Claude Opus 5 |
+| Test-Writer | cost-efficient tier — mechanical transcription of a precise inventory | Claude Sonnet 5 |
+| Implementer | external code-gen agent, governed by `AGENTS.md` | Codex |
 
 ## Open Follow-ups (deferred — don't forget)
 

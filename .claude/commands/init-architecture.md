@@ -8,8 +8,10 @@ Bootstrap the three-file architecture-doc system for **this** repository from th
 `.ai/templates/`. Work the phases **in order** — later ones depend on earlier output.
 
 > **Model check first.** This command is an escalation-tier task (`CLAUDE.md § Escalation`,
-> trigger 4): it must run on **Claude Fable 5**. If the session is on another model, tell the
-> user and stop before Phase 0.
+> trigger 4): it must run on the **Designer's model**. Resolve it from the Model Roster — the
+> live `.ai/PROJECT_ARCHITECTURE.md § Model Roster` if it exists (re-init), otherwise the
+> prefilled roster in `.ai/templates/PROJECT_ARCHITECTURE.template.md`. If the session is on
+> another model, tell the user and stop before Phase 0.
 
 The templates carry their own instructions as markers. Treat them as binding:
 
@@ -94,6 +96,8 @@ Inherited rules worth restating (this is where agents slip):
 - **Runtime Wiring is the highest-risk section**: name the construct actually used AND the tempting-wrong
   default to avoid. Paste the real adapter/handler signature once it exists.
 - **Keep the PROJECT_ARCHITECTURE "Contract" section in place** — it's a live guard, not scaffolding.
+- **§ Model Roster keeps its prefilled kit defaults** — don't blank them into `TODO`s and don't
+  ask; changing them later is `/update-models-roster`'s job.
 
 ## Phase 5 — Self-check
 
@@ -112,5 +116,5 @@ are fine; report them as open decisions.
 Tell the user:
 - The architecture model set (A/B/C) and where it's reflected.
 - Any `TODO`s left open, with why (deferred decision vs unreadable fact).
-- That `.ai/plans/` is ready and the pipeline can start: Designer (Fable 5) → Test-Writer
-  (Sonnet 5) → Verifier (Opus 5) → Implementer (Codex), per `CLAUDE.md § Pipeline`.
+- That `.ai/plans/` is ready and the pipeline can start: Designer → Test-Writer → Verifier →
+  Implementer, per `CLAUDE.md § Pipeline` (models: `PROJECT_ARCHITECTURE.md § Model Roster`).

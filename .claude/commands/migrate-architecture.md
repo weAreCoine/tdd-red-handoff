@@ -15,14 +15,16 @@ multi-model design pipeline. Work the phases **in order** — later ones depend 
 | Artifacts per feature | One: `{feature}.md` (plan) | Two: `{feature}.testplan.md` (test-case inventory) + `{feature}.md` (plan, issued only after the gate) |
 | `AGENTS.md` | Counterpart is "the architect" | Counterpart is the design pipeline; plan must carry `Gate: APPROVED` |
 | `.ai/PROJECT_ARCHITECTURE.md` | References CLAUDE.md "Phase 4" | References the new phase numbering (2, 3, 5) |
+| Model references | Concrete model names inline | Role-relative ("the Designer's model") + a single `§ Model Roster` |
 
 The migration replaces **process** text only. **Facts** (stack, versions, commands, layer map,
 traps, coverage floor) were expensive to establish at init and must survive **unchanged**. If a
 fact changes during this migration, that is a bug in the migration, not an improvement.
 
 > **Model check first.** This command rewrites the process contract — an escalation-tier task
-> (`CLAUDE.md § Escalation`, trigger 4): it must run on **Claude Fable 5**. If the session is
-> on another model, tell the user and stop before Phase 0.
+> (`CLAUDE.md § Escalation`, trigger 4): it must run on the **Designer's model** — resolve it
+> from the prefilled roster in `.ai/templates/PROJECT_ARCHITECTURE.template.md` (the live docs
+> predate the roster). If the session is on another model, tell the user and stop before Phase 0.
 
 ## Phase 0 — Preconditions
 
@@ -99,6 +101,9 @@ and take every replacement text **from the current templates, not from memory**:
     Verifier", not "(architect)".
   - Contract invariant 1: `CLAUDE.md Phase 4` → `CLAUDE.md Phases 2, 3 and 5`.
   - § Documentation: `CLAUDE.md Phase 4 step 6` → `CLAUDE.md Phase 5 step 6`.
+  - Insert `§ Model Roster` (copy the section from `.ai/templates/PROJECT_ARCHITECTURE.template.md`
+    with its prefilled defaults) and append Contract invariant 6 — model names live only in the
+    roster.
 
 ## Phase 4 — In-flight plans (INTERACTIVE — the only human gate)
 
@@ -108,7 +113,7 @@ Never silently rewrite plan files. For each old-format plan found in Phase 1:
 - **In-flight** → present the choice per feature and wait for the user:
   - **(a) Grandfather** — the implementer proceeds on the old plan as-is; no testplan, no gate.
     Fastest; the feature ships without the gate's guarantee.
-  - **(b) Re-enter the pipeline** — the Designer (Fable 5) retro-writes the testplan from the
+  - **(b) Re-enter the pipeline** — the Designer retro-writes the testplan from the
     existing tests, the Verifier gates them and reissues the plan. Full guarantee; costs one
     Designer pass and one gate pass.
 
@@ -125,7 +130,8 @@ grep -nwiE 'architect' CLAUDE.md AGENTS.md .ai/PROJECT_ARCHITECTURE.md   # -w: "
 ```
 
 Any hit in the first = an unresolved marker; in the second = old role vocabulary that survived.
-Fix and re-run. Then re-verify the five Contract invariants (`PROJECT_ARCHITECTURE.md
+Fix and re-run. Then grep each model named in `§ Model Roster` across `CLAUDE.md` and `AGENTS.md`
+— any hit is a concrete name outside the roster (Contract §6); make it role-relative. Then re-verify the five Contract invariants (`PROJECT_ARCHITECTURE.md
 § Contract`) — especially that the coverage floor is **identical** in both files and every
 command name referenced by CLAUDE/AGENTS still has a § Toolchain row. Finally, diff the facts
 against the Phase-1 inventory: every fact must be byte-identical. Surviving `TODO`s from before
@@ -138,5 +144,5 @@ Tell the user:
   model, coverage floor, traps, conventions, doc sources, user-added sections).
 - The in-flight plan decision log: which features were grandfathered, which re-enter the pipeline.
 - Any `TODO`s still open, with why.
-- That the next feature starts with the Designer (Fable 5) per `CLAUDE.md § Pipeline`, and that
-  re-entered features resume at Phase 1 (retro-testplan).
+- That the next feature starts with the Designer (model: `§ Model Roster`) per `CLAUDE.md
+  § Pipeline`, and that re-entered features resume at Phase 1 (retro-testplan).

@@ -2,7 +2,7 @@
 
 A small, opinionated convention for running a **test-driven, multi-model agent pipeline** on a software project: a top-tier model **designs and specifies the tests**, cheaper models **transcribe and gate them**, and a separate implementer **makes them pass**. Roles never trade places, and a single project-facts file keeps them — and you — honest.
 
-This repo gives you the templates and two Claude Code slash commands: `/init-architecture` bootstraps the system in any new project, `/migrate-architecture` upgrades a project running the kit's previous two-role version.
+This repo gives you the templates and three Claude Code slash commands: `/init-architecture` bootstraps the system in any new project, `/migrate-architecture` upgrades a project running the kit's previous two-role version, `/update-models-roster` records a model change in the one place model names live.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -14,7 +14,7 @@ Most "AI writes my code" setups fail the same way: the same agent writes the tes
 
 This kit splits the work into four roles with a hard wall between design and implementation:
 
-| Role | Model | File | Does | Must NOT |
+| Role | Default model | File | Does | Must NOT |
 |------|-------|------|------|----------|
 | **Designer** | Claude Fable 5 | `CLAUDE.md` (Phase 1) | Designs; fixes signatures; writes the test-case inventory | Write test or application code |
 | **Test-Writer** | Claude Sonnet 5 | `CLAUDE.md` (Phase 2) | Transcribes the inventory into failing tests, verifies RED | Make spec decisions, alter expected values |
@@ -25,7 +25,7 @@ Because the implementer **cannot modify the tests**, the specification stays fix
 
 **Why three design roles instead of one architect?** "Writing the tests" packs two very different jobs together: *deciding what to test* — edge cases, failure modes, exact expected values — which is specification work where a weaker model silently makes worse decisions; and *transcribing those cases into code*, which is mechanical, bulky, and exactly what a cheaper model does well from a precise input. Splitting them means the scarce top-tier model is spent **only on the decisions that propagate** (Phase 1 and escalations), while the bulk of the output tokens moves down-tier. The Verifier's gate is what keeps the cheap transcription honest — it checks the tests against the inventory the Designer wrote, so it's verification against a reference, not open judgment.
 
-The model assignments are the kit's defaults — tune them per project, but keep the direction: top tier for spec decisions and escalations only.
+The models above are the kit's **defaults**, and this table is one of only two places a concrete model name appears (the other is the roster prefilled in `PROJECT_ARCHITECTURE.template.md`). Everywhere else the files say "the Designer's model": each project resolves roles to models in its own `PROJECT_ARCHITECTURE.md § Model Roster`, so a model release means editing roster cells (`/update-models-roster`), not rewriting the kit. Tune the assignments per project, but keep the direction: top tier for spec decisions and escalations only.
 
 ---
 
@@ -37,7 +37,7 @@ The system separates **process** (reusable, project-agnostic) from **facts** (re
 |------|------|--------|
 | `CLAUDE.md` | Design pipeline contract (Designer / Test-Writer / Verifier) | **Process** — agnostic, reusable as-is |
 | `AGENTS.md` | Implementer's contract | **Process** — agnostic, reusable as-is |
-| `.ai/PROJECT_ARCHITECTURE.md` | Stack, toolchain, API contract, directory map | **Facts** — specific to one project |
+| `.ai/PROJECT_ARCHITECTURE.md` | Stack, toolchain, model roster, API contract, directory map | **Facts** — specific to one project |
 | `.ai/templates/test_plan_template.md` | The Designer → Test-Writer handoff: the test-case inventory | **Process** |
 | `.ai/templates/plan_template.md` | The Verifier → Implementer handoff: the implementation plan | **Process** |
 
@@ -48,7 +48,7 @@ The system separates **process** (reusable, project-agnostic) from **facts** (re
 ## How a feature flows
 
 ```
-Designer · Fable 5         Test-Writer · Sonnet 5      Verifier · Opus 5             Implementer · Codex
+Designer                   Test-Writer                 Verifier                      Implementer
 (CLAUDE.md, Phase 1)       (CLAUDE.md, Phase 2)        (CLAUDE.md, Phases 3+5)       (AGENTS.md)
 ──────────────────         ────────────────────        ───────────────────           ───────────────────
 1. Analyze requirement
@@ -57,13 +57,13 @@ Designer · Fable 5         Test-Writer · Sonnet 5      Verifier · Opus 5     
    {f}.testplan.md ──────► 3. Transcribe tests,
                               one per inventory row
                            4. Verify RED ────────────► 5. Gate: tests vs inventory
-                              ◄───── REJECTED(n) ─────    (2nd rejection → Fable 5)
+                              ◄───── REJECTED(n) ─────    (2nd rejection → Designer's model)
                                                        6. APPROVED → write plan
                                                           {f}.md ──────────────────► 7. Read the plan
                                                                                      8. Minimum code → GREEN
                                                                                      9. Types, lint, format
                                                       10. Review checklist ◄──────── (hand back)
-                                                          (Fable 5 on triggers)
+                                                          (Designer's model on triggers)
                                                       11. Docs impact decision
 ```
 
@@ -76,15 +76,17 @@ from the memory of having watched them being written.
 
 ## Models & escalation
 
-Opus runs the gate and the review by default; Fable is spent only where a weaker model would
-decide worse. Four triggers bring it back in (the full text lives in `CLAUDE.md § Escalation`):
+The Verifier's model runs the gate and the review by default; the Designer's model is spent only
+where a weaker one would decide worse. Four triggers bring it back in (the full text lives in
+`CLAUDE.md § Escalation`):
 
 1. **Architectural surface** — new pattern, first materialization of a layer, changed dependency
-   direction → Fable also runs the final review.
+   direction → the Designer's model also runs the final review.
 2. **Double gate rejection** — the same feature is rejected twice at the gate → the gate re-runs
-   on Fable.
-3. **Post-review bug** — a defect surfaces after a passed review → Fable runs the post-mortem.
-4. **ADRs, `/init-architecture`, `/migrate-architecture`** — always Fable.
+   on the Designer's model.
+3. **Post-review bug** — a defect surfaces after a passed review → the Designer's model runs the
+   post-mortem.
+4. **ADRs, `/init-architecture`, `/migrate-architecture`** — always the Designer's model.
 
 Two loops close the pipeline: a **gate bounce** (rejection sends the tests back to the
 Test-Writer with point-by-point notes), and a **review loop** (a logic issue found in review
@@ -101,7 +103,7 @@ fix).
 # 1. Drop the kit's directories into your project root
 cp -r .ai .claude /path/to/your/project/
 
-# 2. From your project, in Claude Code (on Claude Fable 5 — it's an escalation-tier task):
+# 2. From your project, in Claude Code (on the Designer's model — an escalation-tier task):
 /init-architecture
 ```
 
@@ -119,12 +121,13 @@ expensive part and `/init-architecture` would rebuild them from scratch. Instead
 # 1. Re-copy the kit's directories (overwrites templates & commands only — never the live docs)
 cp -r .ai .claude /path/to/your/project/
 
-# 2. From your project, in Claude Code (on Claude Fable 5), with a clean working tree:
+# 2. From your project, in Claude Code (on the Designer's model), with a clean working tree:
 /migrate-architecture
 ```
 
 `/migrate-architecture` rebuilds the live docs from the new templates while carrying every
-project fact over **unchanged** (architecture model, coverage floor, traps, conventions), and
+project fact over **unchanged** (architecture model, coverage floor, traps, conventions), adds
+the `§ Model Roster` the old kit didn't have, and
 asks you what to do with in-flight plans: grandfather them as-is, or have the Designer
 retro-write their testplan so they re-enter the pipeline through the gate.
 
@@ -143,6 +146,9 @@ Four things inspection can't settle, so the command stops and asks:
 4. **Coverage floor** — the non-negotiable minimum (default 85%).
 
 It recommends an option where it can, but it won't choose your architecture for you.
+
+The `§ Model Roster` is **not** among the questions: it ships prefilled with the kit's defaults,
+and `/update-models-roster` changes it whenever a new model generation lands.
 
 ---
 
@@ -169,6 +175,7 @@ The templates carry their own filling instructions. Three markers, three lifecyc
 3. **One coverage floor, two files** — identical in `CLAUDE.md` and `PROJECT_ARCHITECTURE.md`.
 4. **Fixed layer vocabulary** — Model / View / Controller / Service / Client, verbatim, everywhere.
 5. **Secrets boundary is absolute** — no provider keys or credentials in frontend source, env, or bundle.
+6. **Model names live only in the roster** — every other file refers to models by role ("the Designer's model"); `/update-models-roster` edits the roster and greps for leaked names.
 
 > The init self-checks these by inspection. If you later want them enforced mechanically in CI, they're written to be greppable — a verification script is a natural addition (intentionally left out here to keep the flow simple).
 
@@ -189,6 +196,7 @@ The templates carry their own filling instructions. Three markers, three lifecyc
   commands/
     init-architecture.md          # the bootstrap slash command
     migrate-architecture.md       # upgrade a two-role-kit project to the pipeline
+    update-models-roster.md       # record a model change in the roster (the only concrete-name location)
 ```
 
 ---
