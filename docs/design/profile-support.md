@@ -1,7 +1,7 @@
 # Profile support and plugin distribution — target state
 
 The design agreed in the grilling session of 2026-08-06. Decisions and their reasons live in
-`docs/adr/0001`–`0005`; this file is the shape they add up to and the order of work. Vocabulary:
+`docs/adr/0001`–`0006`; this file is the shape they add up to and the order of work. Vocabulary:
 `CONTEXT.md`.
 
 ## What changes, in one paragraph
@@ -96,7 +96,7 @@ The nine in the root `CLAUDE.md` do not survive unchanged.
 | 2 | `migrate-architecture.md` cites "template lines 6–8" | Dies with the command's absorption; replace with a content-based reference |
 | 3 | Phase numbers hardcoded in 8 files | Confined to process chapters; agnostic files name phases instead |
 | 4 | Escalation triggers 1–4 in `CLAUDE.template.md` | Move into the pipeline process chapter; README mirrors both profiles |
-| 5 | Toolchain command names are an API | Unchanged |
+| 5 | Toolchain command names are an API | Enforced instead of asserted: contract-name rows carry the name verbatim in the table's first cell, so `verify-kit` can check it (ADR-0006) |
 | 6 | `DRAFT → READY → RED → APPROVED/REJECTED(n)` shared verbatim | Pipeline-only vocabulary; shared files must not assume it |
 | 7 | Layer vocabulary fixed | Unchanged |
 | 8 | Model names only in the roster | Unchanged; roster becomes the union of roles |
@@ -109,21 +109,26 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
 
 1. **Verify the `@path` import survives `/compact`** (ADR-0003). Everything downstream assumes it;
    the fallback is a generated `CLAUDE.md`, but it needs to be chosen before, not after.
-2. **Extract `main`'s role chapter** into `.ai/process/two-role.md`. This is not a merge: the rest
+2. **Build `verify-kit` first** (ADR-0006), in kit-repo mode: pin the checkable shape (contract
+   names in the Toolchain table's first cell, a stable coverage-floor anchor), then write
+   `bin/verify-kit.sh` and `/verify-kit`. Everything below rewrites eight of nine couplings on a
+   Kit whose only verification today is twelve greps that disagree with each other — do this
+   first and each later step is checkable, do it last and each one is merely believed.
+3. **Extract `main`'s role chapter** into `.ai/process/two-role.md`. This is not a merge: the rest
    of `main` duplicates what the feature branch already has. Feature branch is the base.
-3. **Extract the pipeline chapter** out of `CLAUDE.template.md` into `.ai/process/pipeline.md`;
+4. **Extract the pipeline chapter** out of `CLAUDE.template.md` into `.ai/process/pipeline.md`;
    what remains becomes the shell (import line + overlay).
-4. **De-number and neutralise** the three agnostic files (8 sites), union the roster.
-5. **Plugin packaging**: `.claude-plugin/`, move commands, `${CLAUDE_PLUGIN_ROOT}` references.
-6. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
+5. **De-number and neutralise** the three agnostic files (8 sites), union the roster.
+6. **Plugin packaging**: `.claude-plugin/`, move commands, `${CLAUDE_PLUGIN_ROOT}` references.
+7. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
    legacy-kit path and writes `kit.json`; `/migrate-architecture` deleted. Every path in every
    command must be re-rooted to `${CLAUDE_PLUGIN_ROOT}` — the sharpest case is
    `/init-architecture`'s opening model check, which pre-init reads the roster from
    `.ai/templates/PROJECT_ARCHITECTURE.template.md`: under the plugin there is no `.ai/` in the
    target project yet, so that project-relative path resolves to nothing, silently.
-7. **Rewrite the root `CLAUDE.md`** couplings section and the README (two profiles, plugin install,
+8. **Rewrite the root `CLAUDE.md`** couplings section and the README (two profiles, plugin install,
    switching).
-8. **Live projects** — *separate authorization, not part of this branch*: restructure KeyFuture and
+9. **Live projects** — *separate authorization, not part of this branch*: restructure KeyFuture and
    Paddock into shell + overlay; Paddock also crosses from the old kit. Both already carry copied
    `.claude/commands/*.md` from the old install — those become stale duplicates of the plugin's
    commands and must be deleted, not left to shadow them. This is work in two other repositories,

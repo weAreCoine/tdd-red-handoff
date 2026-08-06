@@ -44,6 +44,13 @@ The repository the kit is installed into. Distinct from this repository, which p
 kit.
 _Avoid_: host project, consumer
 
+**Contract name**:
+The exact string a process file uses to refer to a toolchain command — `typecheck`, `test
+(focused)`, `format:check`. It is the name itself, not a description of it, so a target project's
+Toolchain table carries it verbatim in its first cell rather than a human label like "Type-check".
+Rows that are not part of the contract keep human labels.
+_Avoid_: alias, action, label
+
 **Kit manifest**:
 `.ai/kit.json` in a target project: the single machine-readable record of which profile the
 project runs and which kit version installed it. The installer and the migration command read
