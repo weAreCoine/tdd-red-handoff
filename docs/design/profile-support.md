@@ -166,6 +166,16 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    it.*
 8. **Rewrite the root `CLAUDE.md`** couplings section and the README (two profiles, plugin install,
    switching).
+   *Done 2026-08-07 in pre-plugin form: README rebuilt around the two profiles (per-task
+   selection with the stakes-vs-friction criterion, shell + chapter mechanics, `/switch-profile`
+   with the refusal rule and inert testplans, migration absorbed into `/init-architecture`,
+   verify-kit with the triad; the union-roster defaults table stays the README's single
+   concrete-name location; plugin distribution listed as decided-but-deferred, `cp -r`
+   documented as the install path until step 6). Root `CLAUDE.md` couplings list rebuilt per
+   the table above: the profile triad enters as coupling #1, the line-number coupling (#2)
+   died with `/migrate-architecture`, phase-number confinement and the pipeline-scoped
+   detection strings replace the template-wide rules, and the status lifecycle is recorded
+   as pipeline-only vocabulary. verify-kit kit mode: 6/6 PASS.*
 9. **Live projects** — *separate authorization, not part of this branch*: restructure KeyFuture and
    Paddock into shell + overlay; Paddock also crosses from the old kit. Both already carry copied
    `.claude/commands/*.md` from the old install — those become stale duplicates of the plugin's
