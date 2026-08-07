@@ -103,7 +103,8 @@ roster_models() { # $1 = file containing § Model Roster
   sed -n '/^## Model Roster/,/^## /p' "$1" \
     | sed -n 's/^|.*|\([^|]*\)|[[:space:]]*$/\1/p' \
     | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
-    | grep -v -e '^Current model$' -e '^-\{1,\}$' -e '^$'
+    | grep -v -e '^Current model$' -e '^-\{1,\}$' -e '^$' \
+    | sort -u
 }
 
 check_model_leaks() { # $1 = roster file, $2 = allowed-paths regex, $3... = scan roots/files for find
@@ -192,6 +193,16 @@ if [ "$MODE" = kit ]; then
     pass coverage-floor "anchors in place (CLAUDE template floor: $cf; PA template anchor present)"
   else
     fail coverage-floor "anchor missing — CLAUDE '**Project floor**' row: '${cf:-none}'; PA '**Project floor:**' lines: $pf_anchor"
+  fi
+
+  # phase-numbers — profile-agnostic files reference phases by name, never by number;
+  # numbers are legitimate only inside the process chapters.
+  ph=$(grep -nE 'Phase(s)? [0-9]' "$T"/*.md || true)
+  if [ -z "$ph" ]; then
+    pass phase-numbers "no 'Phase N' outside the process chapters"
+  else
+    fail phase-numbers "hardcoded phase numbers in profile-agnostic templates:"
+    printf '%s\n' "$ph" | detail
   fi
 
   # model-roster — names allowed only in README.md and the template roster (coupling #8).
@@ -292,8 +303,9 @@ else # target
       printf '%s\n' "$problems" | grep -v '^$' | detail
     fi
 
-    # phase-numbers — profile-agnostic files must not hardcode phase numbers.
-    ph=$(grep -nE 'Phase [0-9]' $LIVE_AGENTS $LIVE_PA .ai/templates/plan_template.md .ai/templates/test_plan_template.md 2>/dev/null || true)
+    # phase-numbers — profile-agnostic files must not hardcode phase numbers. The CLAUDE.md
+    # file on disk is the shell (the chapter with its numbers arrives via the import).
+    ph=$(grep -nE 'Phase(s)? [0-9]' $LIVE_CLAUDE $LIVE_AGENTS $LIVE_PA .ai/templates/plan_template.md .ai/templates/test_plan_template.md 2>/dev/null || true)
     if [ -z "$ph" ]; then
       pass phase-numbers "no 'Phase N' outside the process chapters"
     else

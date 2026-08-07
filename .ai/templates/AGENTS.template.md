@@ -3,9 +3,10 @@
 > **Read `.ai/PROJECT_ARCHITECTURE.md` in full before writing any code.**
 > Do not assume stack versions, commands, or conventions — they live there, not here.
 > This file is the *process* contract (agnostic, reusable). PROJECT_ARCHITECTURE.md is the *facts* contract (project-specific).
-> Your counterpart is the design pipeline in `CLAUDE.md` (Designer → Test-Writer → Verifier,
-> run on different Claude models). It designs, writes the tests, gates them, and hands you the
-> plan; you make the tests pass. The division of labor is unchanged from your side.
+> Your counterpart is the design side, governed by `CLAUDE.md` (its process chapter names the
+> roles). It designs the feature, writes the failing tests — under some profiles gating them
+> first — and hands you the plan; you make the tests pass. The division of labor is unchanged
+> from your side.
 
 <!-- =============================================================
      INITIALIZATION CHECKLIST — resolve every marker before use:
@@ -31,8 +32,9 @@ Use exactly those. If a command the workflow needs is missing there, STOP and re
 ### Step 1: Read the Plan
 
 Before writing ANY code, read the handoff plan specified by the user in `.ai/plans/`
-(`{feature}.md` — issued by the Verifier only after the tests passed its gate; a plan without
-the `Gate: APPROVED` line in §3 is not ready for you).
+(`{feature}.md` — issued by the design side when the feature is ready for you. If the plan
+carries a `Gate:` row in §3, a plan without `Gate: APPROVED` is not ready; a plan without that
+row comes from a profile with no gate and stands on its own).
 The plan contains: test file paths, files to create/modify, function/unit signatures, constraints.
 Follow it precisely. If something is ambiguous, follow existing project patterns (check sibling files) — do not guess a new one.
 

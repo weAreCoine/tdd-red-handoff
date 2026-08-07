@@ -1,7 +1,7 @@
 # PROJECT_ARCHITECTURE.md
 
-> Project-specific facts. The agnostic *process* contract lives in `CLAUDE.md` (the design
-> pipeline: Designer / Test-Writer / Verifier) and `AGENTS.md` (implementer).
+> Project-specific facts. The agnostic *process* contract lives in `CLAUDE.md` (the active
+> profile's process chapter plus the shared sections) and `AGENTS.md` (implementer).
 > This file is the single source of truth for everything those two files deliberately refuse to guess:
 > stack versions, commands, API contract, runtime wiring, directory map.
 
@@ -30,7 +30,7 @@
      while filling the rest, then LEAVE IT IN PLACE (it stays — it's not scaffolding,
      it's a live guard). Verify each invariant holds before declaring the file done. -->
 
-1. **Command names are an API.** `CLAUDE.md` Phases 2, 3 and 5 and `AGENTS.md` Steps 3–4 reference toolchain commands **by name**:
+1. **Command names are an API.** The process chapter and shared sections of `CLAUDE.md`, and `AGENTS.md` Steps 3–4, reference toolchain commands **by name**:
    `test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`. The § Toolchain table below
    MUST define every one of these names, each carried **verbatim in the row's first cell** — the contract name IS
    the label, not a description of it (`typecheck`, never "Type-check"); rows outside this list keep human labels.
@@ -135,11 +135,14 @@ Pinned from the manifest:
      Then delete this comment. -->
 
 > Referenced **by role** from `CLAUDE.md` and `AGENTS.md` — the only place concrete model names
-> live (Contract §6). Update with `/update-models-roster`: new names come from the user, never
+> live (Contract §6). The roster is the **union across profiles**; the active profile uses its
+> subset (two-role: Architect + Implementer · pipeline: Designer, Test-Writer, Verifier +
+> Implementer). Update with `/update-models-roster`: new names come from the user, never
 > from an agent's memory.
 
 | Role | Capability profile (what to pick) | Current model |
 |------|-----------------------------------|---------------|
+| Architect | strongest reasoning tier — the two-role profile's single design-side role (design, tests, review) | Claude Fable 5 |
 | Designer | strongest reasoning tier available — spec decisions propagate downstream | Claude Fable 5 |
 | Verifier | strong review tier — checklist verification against a written reference | Claude Opus 5 |
 | Test-Writer | cost-efficient tier — mechanical transcription of a precise inventory | Claude Sonnet 5 |
@@ -281,7 +284,8 @@ exists, so the implementer follows it verbatim instead of reconstructing it.
 
 ## Documentation
 
-<!-- FILL: where docs/ADRs live and the registration rule, matching CLAUDE.md Phase 5 step 6.
+<!-- FILL: where docs/ADRs live and the registration rule, matching the documentation step of
+     the review phase in CLAUDE.md.
      If ADRs are used, name the directory and the index file they must be registered in. -->
 
 - ADRs: TODO (directory), registered in TODO (index).

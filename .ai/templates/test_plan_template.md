@@ -2,8 +2,10 @@
 
 <!-- =============================================================
      TEST PLAN — the Designer → Test-Writer handoff, and the Verifier's
-     reference at the gate. This is the SOLE spec interface between
-     Phase 1 and Phases 2–3 (CLAUDE.md § Pipeline).
+     reference at the gate. This is the SOLE spec interface between the
+     design phase and the transcription and gate phases (CLAUDE.md,
+     pipeline chapter). This artifact exists only under the pipeline
+     profile; under two-role it goes inert — never rewritten or deleted.
 
      The Test-Writer TRANSCRIBES this inventory into test code. Every
      decision not written here becomes a spec decision made by the wrong

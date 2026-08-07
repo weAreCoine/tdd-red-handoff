@@ -141,6 +141,12 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    chapter (chapters check), not the templates — the union roster names the Architect
    legitimately.*
 5. **De-number and neutralise** the three agnostic files (8 sites), union the roster.
+   *Done 2026-08-07. All 8 sites de-numbered (5 in `plan_template`, 2 in
+   `PROJECT_ARCHITECTURE.template`, 1 in `test_plan_template`); `AGENTS.template` names its
+   counterpart neutrally and treats `Gate:` as conditional; `plan_template` marks the
+   `Source testplan` / `Gate` rows as pipeline-only; the roster is the union (Architect
+   added on the strongest tier). verify-kit now enforces the de-numbering — `phase-numbers`
+   runs in kit mode over the templates and, in target mode, also on the shell `CLAUDE.md`.*
 6. **Plugin packaging**: `.claude-plugin/`, move commands, `${CLAUDE_PLUGIN_ROOT}` references.
 7. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
    legacy-kit path and writes `kit.json`; `/migrate-architecture` deleted. Every path in every
