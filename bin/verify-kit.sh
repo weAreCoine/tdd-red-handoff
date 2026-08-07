@@ -157,18 +157,9 @@ if [ "$MODE" = kit ]; then
     printf '%s\n' "$problems" | grep -v '^$' | detail
   fi
 
-  # detection — the strings the commands grep for must stay greppable.
-  problems=''
-  grep -q 'Test-Writer' "$T/CLAUDE.template.md" \
-    || problems="$problems$NL  $T/CLAUDE.template.md: 'Test-Writer' not found (new-kit presence check)"
-  arch=$(grep -nwi 'architect' "$T"/*.md || true)
-  [ -n "$arch" ] && problems="$problems$NL  bare 'architect' reintroduced into templates:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
-  if [ -z "$problems" ]; then
-    pass detection "'Test-Writer' present; no bare 'architect' in any template"
-  else
-    fail detection "migration detection strings broken:"
-    printf '%s\n' "$problems" | grep -v '^$' | detail
-  fi
+  # (No templates-wide 'architect' grep: with the union roster, Architect is a first-class
+  #  role name in shared files. The surviving invariant — the pipeline chapter never uses
+  #  the word, and keeps 'Test-Writer' — lives in the chapters check below.)
 
   # chapters — process chapters ship verbatim: no fill markers, ever. The pipeline
   # chapter also keeps its detection string and never uses the two-role role word
@@ -271,13 +262,17 @@ else # target
     check_model_leaks "$LIVE_PA" "^\./?\.ai/PROJECT_ARCHITECTURE\.md$|^\.ai/PROJECT_ARCHITECTURE\.md$" $scan
   fi
 
-  # role-vocab — the old kit's role word must not appear in live docs.
-  arch=$(grep -nwi 'architect' $LIVE_CLAUDE $LIVE_AGENTS $LIVE_PA 2>/dev/null || true)
-  if [ -z "$arch" ]; then
-    pass role-vocab "no bare 'architect' in live docs"
-  else
-    fail role-vocab "bare 'architect' found — old-kit vocabulary in a pipeline installation:"
-    printf '%s\n' "$arch" | detail
+  # role-vocab — pre-profile installations only: there, bare 'architect' in live docs is
+  # old-kit vocabulary. Post-profile the union roster legitimately names the Architect role,
+  # so the grep would only produce false positives — correct USE is not greppable (§4).
+  if [ ! -f .ai/kit.json ]; then
+    arch=$(grep -nwi 'architect' $LIVE_CLAUDE $LIVE_AGENTS $LIVE_PA 2>/dev/null || true)
+    if [ -z "$arch" ]; then
+      pass role-vocab "no bare 'architect' in live docs (pre-profile installation)"
+    else
+      fail role-vocab "bare 'architect' found — old-kit vocabulary in a pipeline installation:"
+      printf '%s\n' "$arch" | detail
+    fi
   fi
 
   # kit-manifest — the profile triad (kit.json <-> import line <-> chapter file).

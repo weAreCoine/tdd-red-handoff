@@ -125,11 +125,21 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    *Done 2026-08-07. Chapter = roles-and-phases only (ADR-0002); no § Escalation — decided with
    the user: the Architect already runs on the strongest roster tier, there is no model to
    escalate to. Three modernizations over `main`'s text, all forced by the no-facts rule:
-   "Codex" → "the implementer" (roster discipline), test co-location → deferred to
-   `PA § Testing`, doc/ADR paths → deferred to `PA § Documentation`. verify-kit gained the
-   `chapters` check (no markers in `.ai/process/`, pipeline detection strings ready).*
+   the implementer is referenced by role instead of by its concrete model name (roster
+   discipline), test co-location → deferred to `PA § Testing`, doc/ADR paths → deferred to
+   `PA § Documentation`. verify-kit gained the `chapters` check (no markers in
+   `.ai/process/`, pipeline detection strings ready).*
 4. **Extract the pipeline chapter** out of `CLAUDE.template.md` into `.ai/process/pipeline.md`;
    what remains becomes the shell (import line + overlay).
+   *Done 2026-08-07. Chapter = Your Role, Artifacts & Status, the five phases, § Escalation
+   (trigger 4 drops the migration command, absorbed at the commands step) and the
+   Test-Philosophy binding note. The shell keeps the shared process sections (Toolchain
+   pointer, Test Philosophy de-role-ified, Conventions) alongside the overlay markers —
+   duplicating them per chapter would be the small version of the "two duplicated trees"
+   ADR-0002 rejected. Line 1 of the shell is a FILL that becomes the profile import.
+   verify-kit re-scoped: 'Test-Writer' and the no-'architect' rule now guard the pipeline
+   chapter (chapters check), not the templates — the union roster names the Architect
+   legitimately.*
 5. **De-number and neutralise** the three agnostic files (8 sites), union the roster.
 6. **Plugin packaging**: `.claude-plugin/`, move commands, `${CLAUDE_PLUGIN_ROOT}` references.
 7. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
