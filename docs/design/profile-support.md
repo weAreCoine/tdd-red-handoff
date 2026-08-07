@@ -109,6 +109,8 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
 
 1. **Verify the `@path` import survives `/compact`** (ADR-0003). Everything downstream assumes it;
    the fallback is a generated `CLAUDE.md`, but it needs to be chosen before, not after.
+   *Done 2026-08-07: blind-marker test passed, imports are re-expanded after compaction — no
+   fallback needed (details in ADR-0003).*
 2. **Build `verify-kit` first** (ADR-0006), in kit-repo mode: pin the checkable shape (contract
    names in the Toolchain table's first cell, a stable coverage-floor anchor), then write
    `bin/verify-kit.sh` and `/verify-kit`. Everything below rewrites eight of nine couplings on a
@@ -137,8 +139,9 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
 
 ## Open
 
-- The `/compact` verification above — the only unverified precondition left.
-  `${CLAUDE_PLUGIN_ROOT}` in commands, and plugins carrying arbitrary directories, are both
-  confirmed against the official `plugin-dev` reference.
 - Whether `two-role` gets escalation triggers of its own, or none — its process chapter is the
   only place that could hold them, and nothing forces the answer yet.
+
+No unverified preconditions remain: the `/compact` import survival is verified (2026-08-07,
+ADR-0003); `${CLAUDE_PLUGIN_ROOT}` in commands, and plugins carrying arbitrary directories, are
+confirmed against the official `plugin-dev` reference.

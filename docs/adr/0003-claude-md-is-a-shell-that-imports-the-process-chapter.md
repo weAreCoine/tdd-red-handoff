@@ -15,13 +15,18 @@ process chapters are installed, so a switch is mechanical, offline, and lossless
 Claude Code's `@path` import is the enabling mechanism: relative to the importing file, up to
 four hops, ignored inside backticks.
 
-**Unverified precondition.** The documentation states that a project-root `CLAUDE.md` is re-read
-from disk and re-injected after `/compact`, but does not say whether its imports are re-expanded.
-If they are not, the process chapter would vanish mid-session — the design's worst failure mode,
-and a silent one. Verify empirically before building on it (add a throwaway import, `/compact`,
-check `/context`). The fallback costs nothing structural: `CLAUDE.md` becomes a **generated** file
-(`cat .ai/process/{profile}.md .ai/overlay.md > CLAUDE.md`), the switch stays mechanical, one
-command, no model in the loop. Only the seam moves.
+**Precondition — verified 2026-08-07.** The documentation states that a project-root `CLAUDE.md`
+is re-read from disk and re-injected after `/compact`, but is silent on whether its imports are
+re-expanded. Verified empirically in this repo with a blind-marker test: a throwaway
+`@.ai/compact-import-probe.md` import on line 1 carried a random marker the model had never seen
+(generated with `openssl rand` redirected straight to the file). After `/compact` the model quoted
+the marker from context alone, and `/context` listed the probe among the loaded memory files —
+imports **are** re-expanded after compaction. The design's worst failure mode (process chapter
+vanishing mid-session) does not occur; the shell design stands.
+
+The fallback, recorded in case the behaviour ever regresses, costs nothing structural: `CLAUDE.md`
+becomes a **generated** file (`cat .ai/process/{profile}.md .ai/overlay.md > CLAUDE.md`), the
+switch stays mechanical, one command, no model in the loop. Only the seam moves.
 
 ## Consequences
 
