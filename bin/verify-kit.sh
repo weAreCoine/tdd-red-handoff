@@ -186,14 +186,15 @@ if [ "$MODE" = kit ]; then
   check_model_leaks "$T/PROJECT_ARCHITECTURE.template.md" \
     '^\./README\.md$|^\./\.ai/templates/PROJECT_ARCHITECTURE\.template\.md$' .
 
-  cat <<'EOF'
-
-NOT CHECKED (mechanically undecidable — verify by reading):
-  - README mirror fidelity (coupling #9): roles, phases, triggers, markers, layout.
-  - The line-number coupling (#2): migrate-architecture cites AGENTS.template.md lines 6-8.
-  - Status-lifecycle and layer vocabulary USED correctly across files (#6, #7):
-    presence is greppable, correct use is not.
-EOF
+  # printf, not a heredoc: heredocs need a temp file, and the script must also
+  # run with a read-only working directory (sandboxed shells, CI checkouts).
+  printf '%s\n' \
+    '' \
+    'NOT CHECKED (mechanically undecidable — verify by reading):' \
+    '  - README mirror fidelity (coupling #9): roles, phases, triggers, markers, layout.' \
+    '  - The line-number coupling (#2): migrate-architecture cites AGENTS.template.md lines 6-8.' \
+    '  - Status-lifecycle and layer vocabulary USED correctly across files (#6, #7):' \
+    '    presence is greppable, correct use is not.'
 
 # =====================================================================
 else # target
@@ -289,13 +290,13 @@ else # target
     (no .ai/kit.json yet) — these checks activate with profile support."
   fi
 
-  cat <<'EOF'
-
-NOT CHECKED (mechanically undecidable — verify by reading):
-  - Contract §2: the layer map describes the REAL repository tree.
-  - Contract §4: layer vocabulary USED correctly (synonyms merely absent is not enough).
-  - Contract §5: the secrets boundary is TRUE in the code, not just stated.
-EOF
+  # printf, not a heredoc — see the kit-mode block for why.
+  printf '%s\n' \
+    '' \
+    'NOT CHECKED (mechanically undecidable — verify by reading):' \
+    '  - Contract §2: the layer map describes the REAL repository tree.' \
+    '  - Contract §4: layer vocabulary USED correctly (synonyms merely absent is not enough).' \
+    '  - Contract §5: the secrets boundary is TRUE in the code, not just stated.'
   if [ -n "$NOTE_PROFILE" ]; then printf '%s\n' "$NOTE_PROFILE"; fi
 
 fi
