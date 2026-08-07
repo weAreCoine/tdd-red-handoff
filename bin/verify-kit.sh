@@ -215,7 +215,6 @@ if [ "$MODE" = kit ]; then
     '' \
     'NOT CHECKED (mechanically undecidable — verify by reading):' \
     '  - README mirror fidelity (coupling #9): roles, phases, triggers, markers, layout.' \
-    '  - The line-number coupling (#2): migrate-architecture cites AGENTS.template.md lines 6-8.' \
     '  - Status-lifecycle and layer vocabulary USED correctly across files (#6, #7):' \
     '    presence is greppable, correct use is not.'
 

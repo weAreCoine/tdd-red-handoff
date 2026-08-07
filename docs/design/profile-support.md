@@ -148,12 +148,22 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    added on the strongest tier). verify-kit now enforces the de-numbering — `phase-numbers`
    runs in kit mode over the templates and, in target mode, also on the shell `CLAUDE.md`.*
 6. **Plugin packaging**: `.claude-plugin/`, move commands, `${CLAUDE_PLUGIN_ROOT}` references.
+   *Deferred by agreement (2026-08-07) to after the two-profile test campaign on the test
+   project: `cp -r .ai .claude` stays the install path for testing, and `/update-kit` arrives
+   with the plugin. Step 7 therefore landed in pre-plugin form, before this step.*
 7. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
    legacy-kit path and writes `kit.json`; `/migrate-architecture` deleted. Every path in every
    command must be re-rooted to `${CLAUDE_PLUGIN_ROOT}` — the sharpest case is
    `/init-architecture`'s opening model check, which pre-init reads the roster from
    `.ai/templates/PROJECT_ARCHITECTURE.template.md`: under the plugin there is no `.ai/` in the
    target project yet, so that project-relative path resolves to nothing, silently.
+   *Done 2026-08-07 in pre-plugin form (paths project-relative; the `${CLAUDE_PLUGIN_ROOT}`
+   re-rooting and `/update-kit` move to step 6): `/switch-profile` new — refusal rule on
+   in-flight testplans, applies exactly two changes (import line + kit.json), triad self-check;
+   `/init-architecture` asks the profile as its first question, wires line 1 + `.ai/kit.json`
+   (`"kitVersion": "TODO"` until the plugin owns versioning) and absorbs the legacy migration
+   as its appendix; `/migrate-architecture` deleted — its line-number coupling (#2) dies with
+   it.*
 8. **Rewrite the root `CLAUDE.md`** couplings section and the README (two profiles, plugin install,
    switching).
 9. **Live projects** — *separate authorization, not part of this branch*: restructure KeyFuture and

@@ -7,11 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is no application code, build system, or test suite. The deliverables are Markdown files:
 
 - `.ai/templates/` — five templates that other projects instantiate
-- `.claude/commands/` — four slash commands (`/init-architecture`, `/migrate-architecture`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep
+- `.claude/commands/` — four slash commands (`/init-architecture`, `/switch-profile`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep
 - `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes
 - `README.md` — the approach itself, kept as a faithful mirror of the templates and commands
 
-Target projects install the kit with `cp -r .ai .claude /path/to/project/`, then run `/init-architecture` (new project) or `/migrate-architecture` (project on the old two-role kit); `/update-models-roster` records model changes afterwards.
+Target projects install the kit with `cp -r .ai .claude /path/to/project/`, then run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task, `/update-models-roster` records model changes afterwards.
 
 **Do not confuse this file with `.ai/templates/CLAUDE.template.md`.** That template *becomes* a target project's `CLAUDE.md`; this root file documents the kit repo itself and is never copied out (only `.ai/` and `.claude/` ship).
 

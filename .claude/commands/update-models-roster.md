@@ -9,8 +9,8 @@ of `PROJECT_ARCHITECTURE.md`). Every other kit file refers to models by role ("t
 model"), so a model change should touch **only roster cells**. This command applies the change
 and proves that invariant still holds.
 
-> **No model check.** Unlike `/init-architecture` and `/migrate-architecture`, this command makes
-> no spec decision: it transcribes the user's choice and runs greps. Any model tier can run it.
+> **No model check.** Unlike `/init-architecture`, this command makes no spec decision: it
+> transcribes the user's choice and runs greps. Any model tier can run it.
 
 ## Phase 0 — Locate the roster(s)
 
