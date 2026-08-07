@@ -156,7 +156,7 @@ When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter
 /switch-profile two-role      # or: pipeline
 ```
 
-The switch is mechanical, offline, and lossless: both chapters are already installed, so it rewrites exactly **two things** — line 1 of `CLAUDE.md` and the `profile` field of `.ai/kit.json` — and touches nothing else. One safeguard: if any testplan is **in flight** (`Status` of `DRAFT`, `READY`, `RED`, or `REJECTED(n)` — specification work the destination profile has no role to read), the command stops and asks for explicit confirmation. Switching happens between tasks, so that refusal should be rare.
+The switch is mechanical, offline, and lossless: both chapters are already installed, so it rewrites exactly **two things** — line 1 of `CLAUDE.md` and the `profile` field of `.ai/kit.json` — and touches nothing else. One safeguard: when switching **to a profile with no role that reads a testplan** (today: two-role), any testplan still **in flight** (`Status` of `DRAFT`, `READY`, `RED`, or `REJECTED(n)`) makes the command stop and ask for explicit confirmation — that's specification work the destination profile would orphan. Switching *to* pipeline never blocks: it revives inert testplans. Switching happens between tasks, so the refusal should be rare.
 
 ### Migrating an older install
 

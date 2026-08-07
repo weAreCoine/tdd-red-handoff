@@ -24,9 +24,13 @@ profile, so nothing else is touched.
 
 ## Phase 1 — Refusal rule (protects in-flight specification work)
 
+This rule fires only when the **destination** profile has no role that reads a testplan
+(today: `two-role`). Switching **to** `pipeline` never blocks — it *revives* inert testplans
+rather than orphaning them — so in that direction skip straight to Phase 2.
+
 Read every `.ai/plans/*.testplan.md`. If **any** has `Status` of `DRAFT`, `READY`, `RED` or
 `REJECTED(n)` — i.e. no implementation plan was issued yet — **STOP**: name the feature and its
-status, explain that the destination profile has no role that reads a testplan, and ask for
+status, explain that the destination profile has no role that reads it, and ask for
 explicit confirmation before proceeding. Switching happens **between tasks**; this refusal
 should be rare, and overriding it is the user's call, never yours.
 

@@ -63,10 +63,13 @@ Nothing else is touched. `{feature}.testplan.md` files go inert under `two-role`
 again on the way back; they are never rewritten, moved, or deleted (ADR-0001).
 
 **Refusal rule.** If any testplan is in flight — `Status` of `DRAFT`, `READY`, `RED` or
-`REJECTED(n)`, with no implementation plan issued — the switch stops, names the feature and its
-status, and asks for an explicit confirmation. Switching happens between tasks, so the refusal is
-rare; when it fires it is protecting specification work that the destination profile has no role
-to read.
+`REJECTED(n)`, with no implementation plan issued — **and the destination profile has no role
+that reads a testplan** (today: `two-role`), the switch stops, names the feature and its
+status, and asks for an explicit confirmation. Switching *to* `pipeline` never blocks: it
+revives inert testplans rather than orphaning them. Switching happens between tasks, so the
+refusal is rare; when it fires it is protecting specification work that the destination profile
+has no role to read. *(Direction qualifier added 2026-08-07: the first transcription of the rule
+was direction-blind — caught in the test campaign's switch tests.)*
 
 ## Making the shared files profile-agnostic
 
