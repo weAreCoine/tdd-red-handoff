@@ -113,7 +113,7 @@ Every feature follows this exact sequence. No exceptions.
     - Missing or ambiguous expected value → STOP, flag it in the testplan Log, hand back to the Designer.
     - A case you believe is missing → flag it in the Log; do **not** add it yourself.
 - Mirror the sibling test file named in §5 for structure and imports; mock only what §4 allows.
-- Run the focused test command (`§ Toolchain`). **VERIFY RED mechanically**: every test must fail.
+- Run the focused test command — `test (focused)` in `§ Toolchain`. **VERIFY RED mechanically**: every test must fail.
     - A test that passes is transcribed wrong or tests existing behavior — fix the transcription or flag it. Never weaken an assert to force a failure.
 - Append the RED output to the Log, set `Status: RED`, and hand off to the Verifier.
 
@@ -141,8 +141,8 @@ code to turn the gated tests green, then hands back for review.
 
 Run in this order:
 
-1. Full test suite (command in `§ Toolchain`) — ALL tests must be green.
-2. Type-check (command in `§ Toolchain`) — zero errors. A green test run with type errors is a fail.
+1. Full test suite — `test` in `§ Toolchain` — ALL tests must be green.
+2. Type-check — `typecheck` in `§ Toolchain` — zero errors. A green test run with type errors is a fail.
 3. Code review against this checklist:
     - No code beyond what tests require (YAGNI).
     - Follows existing project patterns (check sibling files).
@@ -205,7 +205,8 @@ inventory rows (Phase 1) and the **Verifier** when judging the tests against the
 
 ## Coverage Targets
 
-> Baseline defaults below — adjust per project, but justify any reduction.
+> Baseline defaults below — adjust per project, but justify any reduction. Keep the **Project floor**
+> row label verbatim — it is the anchor the floor is checked against `PROJECT_ARCHITECTURE.md § Testing`.
 
 | Layer                                              | Target  | Rationale                          |
 |----------------------------------------------------|---------|------------------------------------|
@@ -215,7 +216,7 @@ inventory rows (Phase 1) and the **Verifier** when judging the tests against the
 | Presentational wrappers / third-party primitives   | excluded | See "What NOT to Test"            |
 | **Project floor**                                  | **85%** | Non-negotiable minimum             |
 
-Track with the coverage command in `§ Toolchain`.
+Track with the `coverage` command in `§ Toolchain`.
 
 ## Conventions
 

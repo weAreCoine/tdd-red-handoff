@@ -40,18 +40,18 @@ Follow it precisely. If something is ambiguous, follow existing project patterns
 
 - Write the MINIMUM code needed to make each failing test pass.
 - Work through tests one by one or in logical groups.
-- After each change, run the focused test command from `§ Toolchain`.
+- After each change, run the focused test command — `test (focused)` in `§ Toolchain`.
 - Iterate until green.
 
 ### Step 3: Verify
 
-- Run the full suite (command in `§ Toolchain`) — ALL tests must pass, not just the new ones.
-- Run the type-checker (command in `§ Toolchain`) — zero errors. A green test run with type errors is NOT done.
+- Run the full suite — `test` in `§ Toolchain` — ALL tests must pass, not just the new ones.
+- Run the type-checker — `typecheck` in `§ Toolchain` — zero errors. A green test run with type errors is NOT done.
 - Fix any regression immediately.
 
 ### Step 4: Clean Up
 
-- Run lint + format (commands in `§ Toolchain`).
+- Run `lint` + `format` (`§ Toolchain`).
 - Report: "All tests green, types clean, lint clean. Ready for review."
 
 ## Hard Rules

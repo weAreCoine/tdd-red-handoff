@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is no application code, build system, or test suite. The deliverables are Markdown files:
 
 - `.ai/templates/` — five templates that other projects instantiate
-- `.claude/commands/` — three slash commands (`/init-architecture`, `/migrate-architecture`, `/update-models-roster`) that drive instantiation and upkeep
+- `.claude/commands/` — four slash commands (`/init-architecture`, `/migrate-architecture`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep
+- `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes
 - `README.md` — the approach itself, kept as a faithful mirror of the templates and commands
 
 Target projects install the kit with `cp -r .ai .claude /path/to/project/`, then run `/init-architecture` (new project) or `/migrate-architecture` (project on the old two-role kit); `/update-models-roster` records model changes afterwards.
@@ -49,7 +50,7 @@ The files reference each other by exact strings, section names, phase numbers, a
 2. **Line-number coupling.** `migrate-architecture.md` Phase 3 references "template lines 6–8" of `AGENTS.template.md` (the header blockquote). Editing that template's header shifts the numbers — update the command.
 3. **Phase numbering** (1 Design · 2 Test Transcription · 3 Gate & Plan · 4 Implementation · 5 Review) is hardcoded in: `CLAUDE.template.md` (role table + § Pipeline), `PROJECT_ARCHITECTURE.template.md` (Contract §1: "Phases 2, 3 and 5"), `AGENTS.template.md`, both plan templates, both commands (including the old→new renumbering map in `migrate-architecture.md` Phase 2), and the README flow diagram.
 4. **Escalation triggers 1–4** live in `CLAUDE.template.md § Escalation`, are summarized in README § Models & escalation, and both commands cite "trigger 4" as their own model check.
-5. **Toolchain command names are an API**: `test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`. Referenced by name from `CLAUDE.template.md` Phases 2/3/5 and `AGENTS.template.md` Steps 3–4; defined as rows in `PROJECT_ARCHITECTURE.template.md § Toolchain`, guarded by its Contract §1.
+5. **Toolchain command names are an API**: `test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`. Referenced by name from `CLAUDE.template.md` Phases 2/3/5 and `AGENTS.template.md` Steps 3–4; defined as rows in `PROJECT_ARCHITECTURE.template.md § Toolchain`, guarded by its Contract §1. Contract rows carry the name **verbatim in the table's first cell** (informational rows keep human labels) — `bin/verify-kit.sh` checks the cells literally.
 6. **Status lifecycle vocabulary** `DRAFT → READY → RED → APPROVED / REJECTED(n)` and the `Gate: APPROVED` line: shared verbatim by `CLAUDE.template.md § Artifacts`, `test_plan_template.md`, `plan_template.md` §3, and `AGENTS.template.md` Step 1.
 7. **Layer vocabulary** Model / View / Controller (orchestration) / Service / Client — fixed, verbatim, across all three doc templates and both plan templates (Contract §4 of `PROJECT_ARCHITECTURE.template.md`).
 8. **Concrete model names live in exactly two places**: the README defaults table and `PROJECT_ARCHITECTURE.template.md § Model Roster` (its Contract §6). Every other file — this one included — refers to models by role ("the Designer's model"). Never inline a model name elsewhere; `/update-models-roster` is the procedure that edits the roster and greps for leaks.
@@ -59,15 +60,14 @@ The `PROJECT_ARCHITECTURE.template.md § Contract` section is a live guard shipp
 
 ## Verification
 
-No CI. After editing, sanity-check by hand:
+No CI. After editing, run the kit's test surface (ADR-0006):
 
 ```bash
-# Detection strings intact (must each return matches)
-grep -n 'Test-Writer' .ai/templates/CLAUDE.template.md
-# No bare "architect" role word reintroduced into templates (must be empty)
-grep -nwiE 'architect' .ai/templates/*.md
+bin/verify-kit.sh   # kit-repo mode: markers survive, detection strings intact, contract
+                    # names pinned, floor anchors present, model names confined (coupling #8)
 ```
 
-After touching the roster or any process text, grep each model name listed in the template roster's "Current model" column across `**/*.md` — hits are allowed only in `README.md` and `PROJECT_ARCHITECTURE.template.md` (coupling #8).
-
-Then walk the couplings list above for whichever file changed. Commits follow semantic prefixes (`feat:`, `fix:`, `docs:`, `chore:`) on `feature/*` branches.
+Three states — PASS / FAIL / NOT CHECKED — and a non-zero exit on any FAIL. What it cannot decide
+mechanically (README mirror fidelity, the line-number coupling #2, correct *use* of the shared
+vocabularies) it lists instead of omitting: for those, walk the couplings list above for
+whichever file changed. Commits follow semantic prefixes (`feat:`, `fix:`, `docs:`, `chore:`) on `feature/*` branches.

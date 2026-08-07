@@ -100,8 +100,8 @@
      an extra gate. -->
 
 - [ ] All tests in §3 green (full suite, not just the slice).
-- [ ] Type-check clean (zero errors).
-- [ ] Lint + `format:check` clean.
+- [ ] `typecheck` clean (zero errors).
+- [ ] `lint` + `format:check` clean.
 - [ ] Layering respected (§2 placement; dependency direction not skipped/inverted).
 - [ ] No code beyond what the tests require (YAGNI).
 - [ ] No secrets in frontend; boundary validation at the edge.

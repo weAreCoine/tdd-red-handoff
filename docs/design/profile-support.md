@@ -116,6 +116,10 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    `bin/verify-kit.sh` and `/verify-kit`. Everything below rewrites eight of nine couplings on a
    Kit whose only verification today is twelve greps that disagree with each other — do this
    first and each later step is checkable, do it last and each one is merely believed.
+   *Done 2026-08-07: shape pinned (contract names verbatim in the Toolchain first cells,
+   `**Project floor**` anchors in both files), `bin/verify-kit.sh` + `/verify-kit` written;
+   kit-repo mode passes on this repo, target mode exercised on synthetic installations
+   (pre-profile drift FAILs as expected, kit.json triad and phase-number checks already active).*
 3. **Extract `main`'s role chapter** into `.ai/process/two-role.md`. This is not a merge: the rest
    of `main` duplicates what the feature branch already has. Feature branch is the base.
 4. **Extract the pipeline chapter** out of `CLAUDE.template.md` into `.ai/process/pipeline.md`;

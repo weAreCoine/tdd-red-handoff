@@ -2,7 +2,7 @@
 
 A small, opinionated convention for running a **test-driven, multi-model agent pipeline** on a software project: a top-tier model **designs and specifies the tests**, cheaper models **transcribe and gate them**, and a separate implementer **makes them pass**. Roles never trade places, and a single project-facts file keeps them — and you — honest.
 
-This repo gives you the templates and three Claude Code slash commands: `/init-architecture` bootstraps the system in any new project, `/migrate-architecture` upgrades a project running the kit's previous two-role version, `/update-models-roster` records a model change in the one place model names live.
+This repo gives you the templates and four Claude Code slash commands: `/init-architecture` bootstraps the system in any new project, `/migrate-architecture` upgrades a project running the kit's previous two-role version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -170,14 +170,14 @@ The templates carry their own filling instructions. Three markers, three lifecyc
 
 `PROJECT_ARCHITECTURE.md` opens with a short **Contract** section the init must honor. These are the seams where the three files can silently drift apart:
 
-1. **Command names are an API.** Every command the process files reference (`test`, `typecheck`, `lint`, `format`, `format:check`, `coverage`) has a matching row in the toolchain table. Rename one and you break the process contract.
+1. **Command names are an API.** Every command the process files reference (`test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`) has a matching row in the toolchain table, and the row's first cell carries the name **verbatim** — the contract name is the label, not a description of it. Rename one and you break the process contract.
 2. **The layer map matches the architecture choice** (A/B/C), with real directory paths.
-3. **One coverage floor, two files** — identical in `CLAUDE.md` and `PROJECT_ARCHITECTURE.md`.
+3. **One coverage floor, two files** — identical in `CLAUDE.md` and `PROJECT_ARCHITECTURE.md`, each on a fixed **Project floor** anchor line.
 4. **Fixed layer vocabulary** — Model / View / Controller / Service / Client, verbatim, everywhere.
 5. **Secrets boundary is absolute** — no provider keys or credentials in frontend source, env, or bundle.
 6. **Model names live only in the roster** — every other file refers to models by role ("the Designer's model"); `/update-models-roster` edits the roster and greps for leaked names.
 
-> The init self-checks these by inspection. If you later want them enforced mechanically in CI, they're written to be greppable — a verification script is a natural addition (intentionally left out here to keep the flow simple).
+> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants and reports three states — PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified.
 
 ---
 
@@ -197,6 +197,9 @@ The templates carry their own filling instructions. Three markers, three lifecyc
     init-architecture.md          # the bootstrap slash command
     migrate-architecture.md       # upgrade a two-role-kit project to the pipeline
     update-models-roster.md       # record a model change in the roster (the only concrete-name location)
+    verify-kit.md                 # run bin/verify-kit.sh and report its three-state output
+bin/
+  verify-kit.sh                   # the kit's mechanical invariant check (kit-repo + target modes)
 ```
 
 ---
@@ -204,7 +207,7 @@ The templates carry their own filling instructions. Three markers, three lifecyc
 ## Possible extensions (not implemented)
 
 - **A broad-evaluation reviewer.** A large-context model (e.g. Gemini) could do whole-repo sanity passes that complement the Verifier's focused, checklist-driven review. Deliberately left out — the per-feature review has been enough in practice so far. Add it if your projects grow past what a focused review comfortably covers.
-- **A CI verification gate.** Mechanically enforce the Contract invariants on every change, not just at init (see the note above).
+- **A CI verification gate.** `bin/verify-kit.sh` already enforces the mechanical invariants on demand; wiring it into CI so every commit runs it is the missing piece.
 
 ---
 

@@ -32,14 +32,17 @@
 
 1. **Command names are an API.** `CLAUDE.md` Phases 2, 3 and 5 and `AGENTS.md` Steps 3–4 reference toolchain commands **by name**:
    `test`, `test (focused)`, `typecheck`, `lint`, `format`, `format:check`, `coverage`. The § Toolchain table below
-   MUST define every one of these names. If you rename one, you break the process contract. If a tool genuinely
+   MUST define every one of these names, each carried **verbatim in the row's first cell** — the contract name IS
+   the label, not a description of it (`typecheck`, never "Type-check"); rows outside this list keep human labels.
+   If you rename one, you break the process contract. If a tool genuinely
    doesn't exist for this stack, keep the row and mark it `TODO` / `N/A` with a reason — never silently drop it.
 2. **The structural model must match CLAUDE.md.** § Conventions (Layering) below realizes the architecture decision
    `[[DECISION A/B/C]]` taken in `CLAUDE.md § Architecture`. The layer→directory map must reflect the **same** chosen
    branch (flat MVCS / domain-partitioned / other). A divergence here silently misroutes every file the implementer
    creates.
-3. **Coverage floor appears once, here, and matches CLAUDE.md.** The floor in § Toolchain (coverage row) and § Testing
-   MUST equal the "Project floor" in `CLAUDE.md § Coverage Targets`. One number, two files — keep them identical.
+3. **Coverage floor appears once, here, and matches CLAUDE.md.** The § Testing line anchored **Project floor:**
+   MUST equal the **Project floor** row in `CLAUDE.md § Coverage Targets` (and the `coverage` command, if it embeds
+   a threshold, uses the same number). One number, two files, two fixed anchors — keep the labels exact.
 4. **Layer names are fixed vocabulary.** Model / View / Controller(orchestration) / Service / Client are used verbatim
    across all three files. Don't introduce synonyms here ("presenter", "gateway", "repository") without updating the
    other two — prefer not to.
@@ -96,26 +99,30 @@ Pinned from the manifest:
 ## Toolchain
 
 <!-- FILL: this table is referenced BY NAME from CLAUDE.md / AGENTS.md (see Contract §1).
-     Every contract command MUST have a row. Fill the real command string for this stack
-     (npm/pnpm/yarn/bun/composer/uv/go…). Status: ✅ if the script exists, TODO if not yet wired.
-     Keep the three columns. The "focused test" form is what the TDD RED loop uses — make sure it
+     Every contract command MUST have a row, and contract rows keep the contract name VERBATIM in
+     the first cell — do NOT relabel them ("typecheck" stays "typecheck", never "Type-check").
+     Informational rows (Install, Dev server, Build, Test (watch)) keep human labels.
+     Fill the real command string for this stack (npm/pnpm/yarn/bun/composer/uv/go…).
+     Status: ✅ if the script exists, TODO if not yet wired.
+     Keep the three columns. The `test (focused)` form is what the TDD RED loop uses — make sure it
      accepts a pattern/path argument. -->
 
-> `CLAUDE.md` and `AGENTS.md` reference this section by name. Keep command names exact (Contract §1).
+> `CLAUDE.md` and `AGENTS.md` reference this section by name. Keep command names exact (Contract §1):
+> the first cell of a contract row is the name itself, checked literally by `verify-kit`.
 
 | Action          | Command | Status |
 |-----------------|---------|--------|
 | Install         | TODO    | TODO   |
 | Dev server      | TODO    | TODO   |
 | Build           | TODO    | TODO   |
-| Lint            | TODO    | TODO   |
-| Type-check      | TODO    | TODO   |
-| Test (all)      | TODO    | TODO   |
-| Test (focused)  | TODO    | TODO   |
+| lint            | TODO    | TODO   |
+| typecheck       | TODO    | TODO   |
+| test            | TODO    | TODO   |
+| test (focused)  | TODO    | TODO   |
 | Test (watch)    | TODO    | TODO   |
-| Coverage        | TODO    | TODO   |
-| Format          | TODO    | TODO   |
-| Format (check)  | TODO    | TODO   |
+| coverage        | TODO    | TODO   |
+| format          | TODO    | TODO   |
+| format:check    | TODO    | TODO   |
 
 <!-- FILL: note any scope caveat that affects how a command behaves — e.g. formatter ignores docs,
      coverage excludes scaffold files, focused-test filters by path substring. One line each.
@@ -204,15 +211,17 @@ exists, so the implementer follows it verbatim instead of reconstructing it.
        - co-location convention (the exact filename pattern)
        - which units are the priority (must match the coverage table's high-target rows in CLAUDE.md)
        - what's EXCLUDED from coverage and why (must match CLAUDE.md's "What NOT to Test")
-       - runner config: where it lives, default environment, globals on/off, the coverage provider + FLOOR
-         (the floor MUST equal CLAUDE.md's project floor — Contract §3)
+       - the coverage floor, on the dedicated "**Project floor:**" line — keep that label verbatim,
+         it is the anchor the floor is checked by, and the number MUST equal CLAUDE.md's (Contract §3)
+       - runner config: where it lives, default environment, globals on/off, the coverage provider
        - any per-file environment opt-in mechanism (DOM/integration), and where setup/polyfills live
      Numbers here must not contradict CLAUDE.md § Coverage Targets. -->
 
 - Co-locate tests: TODO (pattern, e.g. `Foo.x` → `Foo.test.x`).
 - Priority units: TODO (must match CLAUDE.md high-coverage rows).
 - Excluded from coverage: TODO (must match CLAUDE.md "What NOT to Test").
-- Runner config: TODO (location, default env, globals, coverage provider, **floor = CLAUDE.md floor**).
+- **Project floor:** TODO — must equal the **Project floor** row in `CLAUDE.md § Coverage Targets` (Contract §3).
+- Runner config: TODO (location, default env, globals, coverage provider).
 - Integration/DOM env opt-in: TODO (mechanism + setup file location), or N/A.
 
 ## Auth & Secrets
