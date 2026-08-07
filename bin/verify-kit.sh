@@ -170,6 +170,27 @@ if [ "$MODE" = kit ]; then
     printf '%s\n' "$problems" | grep -v '^$' | detail
   fi
 
+  # chapters — process chapters ship verbatim: no fill markers, ever. The pipeline
+  # chapter also keeps its detection string and never uses the two-role role word
+  # ('Architect' is legitimate only in two-role.md).
+  if [ -d .ai/process ] && ls .ai/process/*.md >/dev/null 2>&1; then
+    problems=''
+    ch=$(grep -nE 'FILL:|\[\[DECISION' .ai/process/*.md || true)
+    [ -n "$ch" ] && problems="$problems$NL  fill markers in chapters:$NL$(printf '%s' "$ch" | sed 's/^/    /')"
+    if [ -f .ai/process/pipeline.md ]; then
+      grep -q 'Test-Writer' .ai/process/pipeline.md \
+        || problems="$problems$NL  .ai/process/pipeline.md: 'Test-Writer' not found"
+      arch=$(grep -nwi 'architect' .ai/process/pipeline.md || true)
+      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the pipeline chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+    fi
+    if [ -z "$problems" ]; then
+      pass chapters "process chapters carry no markers (they ship verbatim)"
+    else
+      fail chapters "process chapter invariants broken:"
+      printf '%s\n' "$problems" | grep -v '^$' | detail
+    fi
+  fi
+
   # contract-names — pinned in the template's Toolchain first cells.
   check_contract_names "$T/PROJECT_ARCHITECTURE.template.md"
 

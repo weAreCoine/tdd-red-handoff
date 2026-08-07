@@ -122,6 +122,12 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    (pre-profile drift FAILs as expected, kit.json triad and phase-number checks already active).*
 3. **Extract `main`'s role chapter** into `.ai/process/two-role.md`. This is not a merge: the rest
    of `main` duplicates what the feature branch already has. Feature branch is the base.
+   *Done 2026-08-07. Chapter = roles-and-phases only (ADR-0002); no § Escalation — decided with
+   the user: the Architect already runs on the strongest roster tier, there is no model to
+   escalate to. Three modernizations over `main`'s text, all forced by the no-facts rule:
+   "Codex" → "the implementer" (roster discipline), test co-location → deferred to
+   `PA § Testing`, doc/ADR paths → deferred to `PA § Documentation`. verify-kit gained the
+   `chapters` check (no markers in `.ai/process/`, pipeline detection strings ready).*
 4. **Extract the pipeline chapter** out of `CLAUDE.template.md` into `.ai/process/pipeline.md`;
    what remains becomes the shell (import line + overlay).
 5. **De-number and neutralise** the three agnostic files (8 sites), union the roster.
