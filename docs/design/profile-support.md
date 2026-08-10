@@ -186,6 +186,32 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    one of which has a 45k facts file under active edit; it belongs to whoever owns those trees, on
    their say-so.
 
+## Two-profile test campaign — outcome (2026-08-10)
+
+Run on `AgentsWorkflowTests` (Laravel + Inertia + Svelte): re-init in place from the
+pre-profile install, four switch scenarios (same-profile stop, refusal probe, real switch,
+lossless round-trip), a full two-role flow (profile-completeness) and a pipeline flow
+(exchange-rate-card) through P1–P4 plus the mechanical half of P5 — the escalated P5 verdict
+was deliberately left open once every mechanism had fired at least once. Highlights: role
+inference under an ambiguous prompt (P2), the gate catching a real Designer §2 defect at the
+pre-registered catch point, escalation trigger 1 self-enforced by the Verifier, and the
+artifact chain reconstructing the whole process without chat transcripts.
+
+Findings, all fixed on this branch:
+
+- **K1** — refusal rule was direction-blind → scoped to destinations without a
+  testplan-reading role (fixed mid-campaign).
+- **K2/K3** — `plan_template.md` header hardcoded pipeline vocabulary and had no closing
+  status → profile-aware header, `{RED | DONE}` plan status, both chapters set `DONE` at
+  review close.
+- **K4** — Designers need a home for frozen behavioral decisions (rounding, TTLs, failure
+  semantics) → `test_plan_template.md § 2.1` adopted from the Designer's improvisation.
+- **K5** — three improvised-but-logged corrections in one feature showed the roles lacked an
+  amendment vocabulary → Phase 2 minimal-deviation rule, gate adjudications (ratify /
+  green-row / factual-§2), Phase 5 test-only-finding path, Log open to P5.
+- **K6** — the stray-HTTP finding (pre-existing tests of a modified route hitting the real
+  API) → blast-radius bullet in both chapters' analysis phase + gate check 6.
+
 ## Open
 
 - Whether `two-role` gets escalation triggers of its own, or none — its process chapter is the

@@ -22,8 +22,14 @@
        grep -nE 'FILL:|\{[a-z-]+\}' .ai/plans/{feature-name}.md   # must be empty
      ============================================================= -->
 
-> **Status:** RED (tests written, failing, and gate-APPROVED) — ready for implementation.
-> **Design pipeline:** testplan, tests, and this plan are done. **Implementer:** make the listed tests pass, nothing more.
+> **Status:** {RED | DONE}
+>
+> `RED` tests written and failing — under pipeline, also gate-APPROVED — ready for
+> implementation · `DONE` implemented and review-passed (set by the review phase, with its
+> date). Issue the plan as `RED`; only the review phase closes it.
+>
+> **Design side:** tests and this plan are done — under pipeline, from the gated testplan.
+> **Implementer:** make the listed tests pass, nothing more.
 
 ## 1. Goal
 
@@ -62,7 +68,7 @@
   - `{path}.test.{ext}` — covers: {happy path, failure paths, boundaries, async/abort states it pins}
 - **Run this slice:** `{focused test command with pattern}`
 - **RED verified:** {yes — all listed tests fail as written}
-- **Gate:** APPROVED — {date}, all five gate checks passed (CLAUDE.md, gate phase)
+- **Gate:** APPROVED — {date}, all six gate checks passed (CLAUDE.md, gate phase)
 
 ## 4. Implementation Spec
 

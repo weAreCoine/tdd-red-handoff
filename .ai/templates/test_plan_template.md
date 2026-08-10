@@ -47,6 +47,17 @@
 |---|---|---|---|
 | {layer} | `{path}` | `{signature}` | {new\|modified} |
 
+### 2.1 Behavioral decisions (frozen)
+
+<!-- FILL: the design decisions that are neither signatures nor inventory rows — rounding and
+     formatting policies, cache keys/TTLs, failure/degradation semantics, endpoint or protocol
+     choices, explicit non-goals (YAGNI exclusions). One bullet each, with the WHY when it is
+     not obvious. The inventory below ENCODES these decisions; the Verifier derives the
+     implementation plan's constraints from here. Delete the section only if the feature
+     genuinely has no such decisions (rare). -->
+
+- {decision}
+
 ## 3. Test-Case Inventory (the spec)
 
 <!-- FILL: one row per test, grouped by test file. This is the core artifact:

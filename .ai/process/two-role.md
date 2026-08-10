@@ -43,6 +43,7 @@ Every feature follows this exact sequence. No exceptions.
 - Inspect existing code: routes/views, the API contract (`PROJECT_ARCHITECTURE.md § API Contract`), sibling units, existing orchestration constructs.
 - Identify all affected units: orchestration constructs, state/stores, API client functions, route/entry components, handlers.
 - Map edge cases and failure modes BEFORE writing tests: network failure, partial/aborted response, empty/oversized payload, auth expiry, handler error.
+- **Blast radius on existing tests:** when a modified unit is already exercised by existing tests (same route, controller, or service), check those files — a new outbound call or dependency introduced by this feature must be faked there too; "the new tests pass" is not the whole spec.
 
 ### Phase 2: Write Tests (RED)
 
@@ -88,3 +89,4 @@ Run in this order:
     - **New resource** — the change introduces a concept no existing doc covers (new subsystem, new consumer-facing contract, new architectural decision → ADR). Add the file AND register it in the index.
     - **Update existing** — the change affects already-documented behavior (API contract, runtime config, error mapping, env). Edit the relevant doc; flip `Planned` → `Implemented` markers when implementation landed.
     - **Nothing** — internal refactors, test-only changes, or details below documentation granularity. State explicitly that no doc update is needed and why.
+7. Close the artifact chain: set the plan's `Status: DONE` with the date.
