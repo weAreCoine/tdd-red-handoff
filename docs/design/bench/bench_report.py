@@ -151,16 +151,25 @@ def accumulate_phases(entries, windows, max_gap=None):
             if msg_id in seen_msg_ids:
                 continue
             seen_msg_ids.add(msg_id)
-            m = usage[model]
-            m["input"] += u.get("input_tokens") or 0
-            m["output"] += u.get("output_tokens") or 0
-            m["cache_read"] += u.get("cache_read_input_tokens") or 0
-            cc = u.get("cache_creation")
-            if isinstance(cc, dict):
-                m["cache_w5m"] += cc.get("ephemeral_5m_input_tokens") or 0
-                m["cache_w1h"] += cc.get("ephemeral_1h_input_tokens") or 0
-            else:
-                m["cache_w5m"] += u.get("cache_creation_input_tokens") or 0
+            # A message's usage may carry per-call `iterations`; the top-level
+            # input/output fields sum only the plain "message" iterations, while
+            # advisor calls (billed to the session, possibly on ANOTHER model)
+            # appear only inside iterations[]. Sum per iteration when present,
+            # attributing each to its own model.
+            its = u.get("iterations")
+            blocks = ([(b.get("model") or model, b) for b in its]
+                      if isinstance(its, list) and its else [(model, u)])
+            for b_model, b in blocks:
+                m = usage[b_model]
+                m["input"] += b.get("input_tokens") or 0
+                m["output"] += b.get("output_tokens") or 0
+                m["cache_read"] += b.get("cache_read_input_tokens") or 0
+                cc = b.get("cache_creation")
+                if isinstance(cc, dict):
+                    m["cache_w5m"] += cc.get("ephemeral_5m_input_tokens") or 0
+                    m["cache_w1h"] += cc.get("ephemeral_1h_input_tokens") or 0
+                else:
+                    m["cache_w5m"] += b.get("cache_creation_input_tokens") or 0
         if pid in phases:  # marker reused (rework loop) — merge into the phase
             phases[pid]["active_s"] += active
             for model, m in usage.items():
