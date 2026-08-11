@@ -245,6 +245,72 @@ bin/
 
 ---
 
+## One measured run (2026-08-11) — field notes, not statistics
+
+Both profiles ran the **same frozen feature request** once each — a dashboard weather
+card deliberately isomorphic to a card precedent already in the repo — in twin worktrees
+of the same Laravel app, same Implementer CLI, phases driven by frozen prompts. Method,
+raw data and the full comparison: `docs/design/bench/` (`protocol.md`, `results.md`).
+
+**Read the limits before the numbers.** This is one run on one task: it shows the shape
+of the profiles' overhead, not averages. The task's isomorphy to an existing precedent
+is what makes the runs comparable — and also caps how much design-quality difference
+*could* have shown. Both runs happened to hit the no-rework path (the gate approved
+first pass), so the pipeline paid its coordination overhead without ever exercising the
+thing the gate exists for — rejecting a bad testplan before implementation is where it
+would earn its cost back. The Test-Writer tier was measured at introductory pricing.
+Nothing below generalizes beyond "this is what one clean run costs".
+
+Cost (USD) and active time by bucket:
+
+| Bucket | two-role | pipeline | Δ cost |
+|---|---:|---:|---:|
+| Design | 3.66 · 4m05s | 6.07 · 9m36s | +66% |
+| Tests | 3.76 · 6m25s | 2.70 · 7m39s | −28% |
+| Plan/Gate | 1.84 · 2m33s | 5.28 · 10m23s | +187% |
+| Implementation | 3.11 · 8m50s | 3.05 · 8m23s | −2% |
+| Review | 3.69 · 3m14s | 3.45 · 6m19s | −7% |
+| **Total** | **16.06 · 25m07s** | **20.55 · 42m20s** | **+28%** |
+
+What the one run showed, in decreasing confidence:
+
+- **The top-tier saving is real and large.** Under two-role the Architect's model
+  carries everything: $12.95 and ~4.0M processed tokens. Under pipeline the same tier
+  does only Design: $6.07 and ~1.0M — **−53% cost, −75% token throughput** on the tier
+  with the least availability. That is the pipeline's core trade delivered as designed.
+- **Where the saving lands matters.** It shifts almost 1:1 onto the Verifier's tier
+  (≈$9.70), not onto the cheap Test-Writer tier ($1.73). This placement is deliberate
+  and, per our experience, sound: the Verifier executes a written gate checklist against
+  a written testplan — a role for a model that performs when told exactly what to do,
+  not one asked to design in the open.
+- **The overhead concentrates in Plan/Gate** (+187%): a fresh Verifier session re-reads
+  testplan, tests and repo cold, where the Architect issues the plan from a warm
+  session. Same-session cache reuse is the two-role profile's structural advantage; the
+  pipeline's serialization of everything into artifacts is what its role isolation costs.
+- **The cheap-tier saving is smaller than it looks**: a third of the pipeline's Tests
+  bucket was advisor iterations the harness itself billed on a stronger tier, and the
+  rest rides introductory pricing.
+
+Both implementations shipped green (115/115 vs 108/108 tests) and converged to
+near-identical code — same layering, same caching flow, UI markup identical to the CSS
+class — confirming that the shared precedent plus `PROJECT_ARCHITECTURE.md` do most of
+the design steering in either profile. The differences that remain are process
+signatures, worth knowing when choosing a profile:
+
+- **Initiative lives only on the design side of the wall.** The Architect wrote 25
+  tests, two beyond its own analysis — including a cross-card independence test the
+  pipeline run lacks. The Test-Writer transcribed the testplan's 23 rows exactly, 1:1:
+  under pipeline, a test the Designer didn't inventory doesn't exist.
+- **The testplan's rigor cuts the other way too**: its inventory caught a
+  negative-zero rendering edge the Architect's run missed. Externalizing every case
+  into a reviewed artifact is slower and costs more Design output — and catches more.
+- **The profile does not decide semantics.** Facing the same ambiguous sentence in the
+  frozen request, the two runs shipped two defensible contracts (partial upstream data
+  tolerated and windowed vs. rejected as malformed). Neither process surfaced the
+  ambiguity to the human; that remains model judgment, in both profiles.
+
+---
+
 ## Possible extensions (not implemented)
 
 - **Plugin distribution.** Decided (ADR-0004) but deliberately deferred: the kit becomes a Claude Code plugin — `.claude-plugin/`, commands served from the plugin, `/update-kit` to realign an installed project — replacing `cp -r` as the install path.

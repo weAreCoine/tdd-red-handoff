@@ -83,6 +83,46 @@ Design-side active time (Impl excluded): 16m17s vs 33m57s (+108%).
    (−2% cost, −5% time). The frozen feature request measured process overhead, not
    design luck — as intended.
 
+## Implementation comparison (tests + application code)
+
+Both suites green: two-role **115/115** (386 assertions), pipeline **108/108** (365) —
+baseline was 80/80. Both plans `DONE`, toolchain gates green in both worktrees.
+
+**Convergence first.** Same layering (Client → Service → orchestration), same class and
+file layout (client 95 vs 90 LOC, service 117 vs 121), same exception style, same cache
+flow (success TTL + failure marker + single warning log), same direction `match()`,
+same negative-zero formatting idiom, and Svelte card markup **identical to the CSS
+class**. The shared precedent (`exchange-rate-card`) plus `PROJECT_ARCHITECTURE.md`
+steered both profiles to the same design; the isomorphic task measured process, and the
+processes converged.
+
+**Divergences — process signatures, not defects:**
+
+1. **Test initiative.** The Architect wrote 25 weather cases (9 client / 12 service /
+   4 page), two beyond the minimum — including a cross-card independence test (rate-API
+   outage must not take down the weather card) absent from the pipeline run. The
+   Test-Writer transcribed the testplan's inventory **exactly**: 23 rows → 23 tests,
+   nothing added. Under pipeline, coverage is decided entirely at Design time.
+2. **The inventory's rigor caught an edge the Architect missed**: the pipeline service
+   normalizes the *current* temperature's negative zero (freezing case, `−0.04` →
+   `"0.0"`); the two-role service guards only the delta and would render `"-0.0"`.
+   Minor, real, and exactly the kind of case a forced exhaustive inventory surfaces.
+3. **Same sentence, two contracts.** On `null` daily means the two-role client is
+   tolerant (skips them as days without data; the service windows the trend on what
+   remains — three dedicated tests), the pipeline client is fail-fast (any `null` →
+   exception → unavailable). Both are defensible readings of the frozen request's
+   "malformed payload → unavailable"; neither run flagged the ambiguity for a human.
+   Inverted strictness elsewhere: the two-role client type-checks means strictly
+   (`is_int`/`is_float`, rejects numeric strings) where the pipeline accepts
+   `is_numeric` strings. The wall guarantees the tests bind the implementation — not
+   that two runs pick the same contract.
+4. Cosmetics: return-key naming (`dailyMeans` vs `daily`), cache-key naming, constant
+   naming. No functional weight.
+
+**Net quality verdict:** indistinguishable on this task. One small edge each way
+(independence test vs freezing edge), both suites green, no functional bug found in
+either during this review beyond the `-0.0` rendering note above.
+
 ## Method notes
 
 - Two parser defects were found and fixed **during** collection, before either run's
