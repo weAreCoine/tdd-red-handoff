@@ -165,3 +165,26 @@ write) split by model, and estimated cost in USD. **Compare on the cost column**
 raw tokens — the pipeline staffs roles on different price tiers by design, so token
 counts are not comparable 1:1 across profiles. The implementation phase reports tokens
 always; its cost only if you pass `--codex-price-in/--codex-price-out` (USD per 1M).
+
+## Cross-check with ccusage
+
+`bench_report.py` is the only instrument that knows the phase markers and the active-time
+rule; `ccusage` (installed, run via `bunx`) is session-grained but keeps an independent
+accounting with its own pricing table. Use it two ways after each run:
+
+1. **Validate the parser's totals.** Per worktree, the sum of the phase rows must match
+   the session totals reported by:
+
+   ```bash
+   bunx ccusage claude session --json | # filter on projectPath:
+   # -Users-luca-Projects-AgentsWorkflowTests-bench-two  (or …-bench-pipe)
+   ```
+
+   Tokens must match exactly (both dedupe by message id); the cost column may differ
+   slightly where the parser's hardcoded prices and ccusage's live pricing table diverge
+   (e.g. introductory pricing) — investigate anything beyond that.
+
+2. **Price the implementation phase.** Instead of hunting for the external CLI's price
+   list, read the per-session cost straight from `bunx ccusage codex session` (its rows
+   match the rollouts `bench_report.py` finds; pair them by timestamp/size) and use that
+   figure for the IMPL row.
