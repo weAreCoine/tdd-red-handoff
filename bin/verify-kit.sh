@@ -13,7 +13,8 @@
 #            commands in place).
 #   target   a project the kit is installed into. Markers must be GONE from the
 #            live docs, contract names verbatim in the live Toolchain, one floor
-#            in two files on fixed anchors, no model-name leaks outside the roster.
+#            in two files on fixed anchors, no model-name leaks outside the roster
+#            in the live docs (plan Logs are records, not scanned — NOT CHECKED).
 #
 # Three result states — green must mean something exact:
 #   PASS / FAIL      per mechanical check.
@@ -267,13 +268,18 @@ else # target
   fi
 
   # markers — in a target project the self-check must return NOTHING.
+  # Plans are grepped for FILL: only. A {token} surviving from the per-feature templates
+  # is not mechanically distinguishable from a plan's legitimate brace literals — route
+  # params (/{record}), migration filename patterns ({ts}_create_…), format strings
+  # ({n} righe) — first real target (KeyFuture, 2026-08-11) hit all three. Brace-token
+  # residue is listed under NOT CHECKED instead of guessed at.
   hits=$(grep -nE 'FILL:|\[\[DECISION' $LIVE_CLAUDE $LIVE_AGENTS $LIVE_PA 2>/dev/null || true)
   planhits=''
   if [ -d .ai/plans ] && ls .ai/plans/*.md >/dev/null 2>&1; then
-    planhits=$(grep -nE 'FILL:|\{[a-z-]+\}' .ai/plans/*.md 2>/dev/null || true)
+    planhits=$(grep -n 'FILL:' .ai/plans/*.md 2>/dev/null || true)
   fi
   if [ -z "$hits" ] && [ -z "$planhits" ]; then
-    pass markers "no FILL / [[DECISION]] in live docs; no FILL / {placeholder} in plans"
+    pass markers "no FILL / [[DECISION]] in live docs; no FILL in plans"
   else
     fail markers "unresolved template markers survive in filled files:"
     printf '%s\n%s\n' "$hits" "$planhits" | grep -v '^$' | detail
@@ -296,11 +302,12 @@ else # target
   fi
 
   # model-roster — names allowed only inside the live roster file (Contract §6).
+  # .ai/plans is deliberately NOT scanned: plan/testplan Logs record which model did
+  # what (records, not references — the /update-models-roster doctrine), and
+  # record-vs-reference is not greppable, so it lives under NOT CHECKED.
   if [ -f "$LIVE_PA" ]; then
-    scan="$LIVE_CLAUDE $LIVE_AGENTS"
-    [ -d .ai/plans ] && scan="$scan .ai/plans"
-    # shellcheck disable=SC2086
-    check_model_leaks "$LIVE_PA" "^\./?\.ai/PROJECT_ARCHITECTURE\.md$|^\.ai/PROJECT_ARCHITECTURE\.md$" $scan
+    check_model_leaks "$LIVE_PA" "^\./?\.ai/PROJECT_ARCHITECTURE\.md$|^\.ai/PROJECT_ARCHITECTURE\.md$" \
+      "$LIVE_CLAUDE" "$LIVE_AGENTS"
   fi
 
   # role-vocab — pre-profile installations only: there, bare 'architect' in live docs is
@@ -356,7 +363,11 @@ else # target
     'NOT CHECKED (mechanically undecidable — verify by reading):' \
     '  - Contract §2: the layer map describes the REAL repository tree.' \
     '  - Contract §4: layer vocabulary USED correctly (synonyms merely absent is not enough).' \
-    '  - Contract §5: the secrets boundary is TRUE in the code, not just stated.'
+    '  - Contract §5: the secrets boundary is TRUE in the code, not just stated.' \
+    '  - Surviving {tokens} in plans: not distinguishable from legitimate brace literals' \
+    '    (route params, filename patterns, format strings) — only FILL: is grepped there.' \
+    '  - Plan/testplan Logs may RECORD model names (records, not references); prescriptive' \
+    '    model naming in a plan is not greppable (Contract §6 covers the live docs).'
   if [ -n "$NOTE_PROFILE" ]; then printf '%s\n' "$NOTE_PROFILE"; fi
 
 fi
