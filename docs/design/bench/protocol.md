@@ -32,11 +32,15 @@ Environment per worktree: `.env` copied, `composer install`, `npm ci`, `npm run 
 2. **Model per session**: before pasting the first prompt of a session, set the model to
    the session's role per the roster (`/model`, then verify). The Implementer runs in its
    own external CLI per `AGENTS.md`; its session is measured from that CLI's rollout log.
-3. **Active time** (Claude transcripts): a gap between consecutive events is idle only
-   when the event that closes it is a prompt typed by you — every machine-closed gap
-   counts as work, whatever its length (long thinking stretches included). The external
-   CLI's rollout can't reliably separate your approval waits from tool waits, so there a
-   ≤120s-gap threshold applies instead (`--gap`); approval waits inflate its active time.
+3. **Active time** (Claude transcripts): work runs from each prompt you type to the
+   last *work event* of its turn — assistant output, tool results, file edits landing.
+   The wait before your next prompt is idle. Work-closed gaps count whatever their
+   length (long thinking stretches included); harness bookkeeping entries — attachments
+   batched with a prompt, away summaries, hook logs, a new session's preamble — close
+   nothing (they used to leak the whole inter-session wait into the previous phase).
+   The external CLI's rollout can't reliably separate your approval waits from tool
+   waits, so there a ≤120s-gap threshold applies instead (`--gap`); approval waits
+   inflate its active time.
 4. **Rework loops are part of the measurement**: a `REJECTED(n)` gate or review findings
    send the work back to the owning role exactly as the chapter prescribes. When
    re-entering a phase, reuse its marker verbatim (a second `[BENCH P2]` before the fix

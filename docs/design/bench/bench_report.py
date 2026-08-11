@@ -102,13 +102,29 @@ def is_user_prompt(e):
     return False
 
 
+def is_work_event(e):
+    """Model/tool activity: assistant output, tool results coming back, file
+    edits landing. Everything else the harness writes (attachments batched with
+    the next prompt, away summaries, hook logs, a new session's preamble) is
+    bookkeeping — it must not close a gap as if the machine had been working."""
+    t = e.get("type")
+    if t in ("assistant", "file-history-delta"):
+        return True
+    if t == "user" and not e.get("isMeta"):
+        content = (e.get("message") or {}).get("content")
+        return isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )
+    return False
+
+
 def accumulate_phases(entries, windows, max_gap=None):
-    """Active time: a gap between consecutive events is idle only when the event
-    that closes it is a human prompt (the machine was waiting for input); every
-    machine-closed gap is work, whatever its length — long thinking stretches
-    included. `max_gap`, when set, additionally caps machine-closed gaps (safety
-    valve for crashed sessions). Windows sharing a phase ID (rework loops that
-    reuse a marker) are summed."""
+    """Active time: work runs from each human prompt to the last work event of
+    its turn; the wait before the next human prompt is idle. Only work events
+    close a gap as work — every work-closed gap counts, whatever its length
+    (long thinking stretches included). `max_gap`, when set, additionally caps
+    work-closed gaps (safety valve for crashed sessions). Windows sharing a
+    phase ID (rework loops that reuse a marker) are summed."""
     phases = {}
     for pid, start, end in windows:
         span = [e for e in entries if e["_ts"] >= start and (end is None or e["_ts"] < end)]
@@ -117,12 +133,13 @@ def accumulate_phases(entries, windows, max_gap=None):
         usage = defaultdict(lambda: defaultdict(int))
         seen_msg_ids = set()  # a multi-block assistant message repeats its usage per line
         for e in span:
-            if prev is not None:
+            if is_user_prompt(e):
+                prev = e["_ts"]  # a turn starts here; the wait before it was idle
+            elif is_work_event(e) and prev is not None:
                 delta = (e["_ts"] - prev).total_seconds()
-                if delta >= 0 and not is_user_prompt(e):
-                    if max_gap is None or delta <= max_gap:
-                        active += delta
-            prev = e["_ts"]
+                if delta >= 0 and (max_gap is None or delta <= max_gap):
+                    active += delta
+                prev = e["_ts"]
             if e.get("type") != "assistant":
                 continue
             msg = e.get("message") or {}
