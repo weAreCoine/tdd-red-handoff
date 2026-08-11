@@ -32,10 +32,17 @@ Environment per worktree: `.env` copied, `composer install`, `npm ci`, `npm run 
 2. **Model per session**: before pasting the first prompt of a session, set the model to
    the session's role per the roster (`/model`, then verify). The Implementer runs in its
    own external CLI per `AGENTS.md`; its session is measured from that CLI's rollout log.
-3. **Active time** = sum of gaps ≤ 120s between consecutive transcript events inside a
-   phase window. Your idle time between prompts does not count. (Parser default `--gap 120`.)
-4. **Escalation**: if a gate or review escalates, record the verdict and stop — no second
-   loop. The measurement covers one pass of each phase.
+3. **Active time** (Claude transcripts): a gap between consecutive events is idle only
+   when the event that closes it is a prompt typed by you — every machine-closed gap
+   counts as work, whatever its length (long thinking stretches included). The external
+   CLI's rollout can't reliably separate your approval waits from tool waits, so there a
+   ≤120s-gap threshold applies instead (`--gap`); approval waits inflate its active time.
+4. **Rework loops are part of the measurement**: a `REJECTED(n)` gate or review findings
+   send the work back to the owning role exactly as the chapter prescribes. When
+   re-entering a phase, reuse its marker verbatim (a second `[BENCH P2]` before the fix
+   session, a second `[BENCH A4]`/`[BENCH P5]` for the re-review): the parser sums
+   same-ID windows. **Model escalation is the exception**: record the verdict and stop —
+   the run does not climb the ladder.
 5. **No mid-run fixes**: if the environment breaks mid-phase, note it, fix it outside the
    session, and mark the phase as contaminated in the results.
 6. Work in the worktree's own directory only — transcripts land in a per-worktree project

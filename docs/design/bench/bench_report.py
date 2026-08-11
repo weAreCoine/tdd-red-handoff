@@ -87,7 +87,28 @@ def phase_windows(entries):
     return windows
 
 
-def accumulate_phases(entries, windows, gap):
+def is_user_prompt(e):
+    """A prompt typed by the human (incl. slash commands) — not tool results,
+    not sidechain (subagent) prompts, not harness meta entries."""
+    if e.get("type") != "user" or e.get("isSidechain") or e.get("isMeta"):
+        return False
+    content = (e.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return True
+    if isinstance(content, list):
+        return not any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )
+    return False
+
+
+def accumulate_phases(entries, windows, max_gap=None):
+    """Active time: a gap between consecutive events is idle only when the event
+    that closes it is a human prompt (the machine was waiting for input); every
+    machine-closed gap is work, whatever its length — long thinking stretches
+    included. `max_gap`, when set, additionally caps machine-closed gaps (safety
+    valve for crashed sessions). Windows sharing a phase ID (rework loops that
+    reuse a marker) are summed."""
     phases = {}
     for pid, start, end in windows:
         span = [e for e in entries if e["_ts"] >= start and (end is None or e["_ts"] < end)]
@@ -98,8 +119,9 @@ def accumulate_phases(entries, windows, gap):
         for e in span:
             if prev is not None:
                 delta = (e["_ts"] - prev).total_seconds()
-                if 0 <= delta <= gap:
-                    active += delta
+                if delta >= 0 and not is_user_prompt(e):
+                    if max_gap is None or delta <= max_gap:
+                        active += delta
             prev = e["_ts"]
             if e.get("type") != "assistant":
                 continue
@@ -122,7 +144,14 @@ def accumulate_phases(entries, windows, gap):
                 m["cache_w1h"] += cc.get("ephemeral_1h_input_tokens") or 0
             else:
                 m["cache_w5m"] += u.get("cache_creation_input_tokens") or 0
-        phases[pid] = {"active_s": active, "usage": usage}
+        if pid in phases:  # marker reused (rework loop) — merge into the phase
+            phases[pid]["active_s"] += active
+            for model, m in usage.items():
+                dst = phases[pid]["usage"][model]
+                for k, v in m.items():
+                    dst[k] += v
+        else:
+            phases[pid] = {"active_s": active, "usage": usage}
     return phases
 
 
@@ -216,7 +245,9 @@ def main():
     ap.add_argument("--since", default=None,
                     help="YYYY-MM-DD; bound the Codex rollout scan (default: 7 days ago)")
     ap.add_argument("--gap", type=float, default=120.0,
-                    help="idle threshold in seconds (default 120)")
+                    help="Codex idle threshold in seconds (default 120)")
+    ap.add_argument("--max-gap", type=float, default=None,
+                    help="optional cap for machine-closed gaps in Claude transcripts")
     args = ap.parse_args()
 
     since = (dt.datetime.strptime(args.since, "%Y-%m-%d") if args.since
@@ -224,7 +255,7 @@ def main():
 
     entries = load_claude_entries(args.claude_dir)
     windows = phase_windows(entries)
-    phases = accumulate_phases(entries, windows, args.gap)
+    phases = accumulate_phases(entries, windows, args.max_gap)
 
     title = f"Benchmark report — {args.label or args.claude_dir}"
     print(title)
