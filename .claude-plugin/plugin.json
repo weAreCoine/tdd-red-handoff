@@ -1,7 +1,7 @@
 {
   "name": "tdd-red-handoff",
   "displayName": "Multi-Agent TDD Architecture Kit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Test-driven multi-agent workflow kit: a hard wall between test-writing and implementation, two profiles (two-role | pipeline) chosen per task, artifact-based handoffs.",
   "author": {
     "name": "coine.it",

@@ -211,7 +211,9 @@ Require a clean working tree and recommend a dedicated branch — one reviewable
   gates it — recommend when tests exist but implementation hasn't started). The user decides.
 - **M5 — Wire and check.** Write `.ai/kit.json` and delete stale pre-plugin command copies
   (Phase 3 steps 2–3), then run Phase 5 in full, plus:
-  `grep -nwiE 'architect' CLAUDE.md AGENTS.md .ai/PROJECT_ARCHITECTURE.md` must be empty (the
-  Architect role name lives in the roster and the two-role chapter, not in hand-written live
-  text), and diff every fact against the M1 inventory — byte-identical, floor included. Report
-  per M1/M4: what was carried, what was replaced, the plan decision log.
+  `grep -nwiE 'architect' CLAUDE.md AGENTS.md .ai/PROJECT_ARCHITECTURE.md` may hit **only
+  inside PROJECT_ARCHITECTURE's § Model Roster** — the union roster names the Architect by
+  contract, so M3 makes an empty grep impossible; anywhere else the word is old-kit vocabulary
+  surviving in hand-written live text and must go. Then diff every fact against the M1
+  inventory — byte-identical, floor included. Report per M1/M4: what was carried, what was
+  replaced, the plan decision log.
