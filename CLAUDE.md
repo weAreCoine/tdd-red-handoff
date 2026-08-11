@@ -8,13 +8,14 @@ This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is
 
 - `.ai/templates/` — five templates that other projects instantiate
 - `.ai/process/` — the two process chapters (`two-role.md`, `pipeline.md`): each profile's roles-and-phases contract, shipped **verbatim** (no markers, no project facts, never edited in a target)
-- `.claude/commands/` — four slash commands (`/init-architecture`, `/switch-profile`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep
-- `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes
+- `commands/` — five slash commands (`/init-architecture`, `/switch-profile`, `/update-kit`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep — served to the operator by the plugin, never installed into targets (ADR-0004)
+- `.claude-plugin/` — the plugin manifests: `plugin.json` (its `version` is the authoritative kit version — ADR-0005) and `marketplace.json` (the repo is its own marketplace, plugin source `"./"`)
+- `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes; ships inside the plugin, so `/verify-kit` works in any target
 - `README.md` — the approach itself, kept as a faithful mirror of the templates and commands
 
-Target projects install the kit with `cp -r .ai .claude /path/to/project/`, then run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task, `/update-models-roster` records model changes afterwards.
+Target projects install the kit as a Claude Code plugin — `/plugin marketplace add weAreCoine/tdd-red-handoff`, then `/plugin install tdd-red-handoff` — and run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task, `/update-kit` realigns the installed kit files when a new plugin version ships, `/update-models-roster` records model changes afterwards.
 
-**Do not confuse this file with `.ai/templates/CLAUDE.template.md`.** That template *becomes* a target project's `CLAUDE.md`; this root file documents the kit repo itself and is never copied out (only `.ai/` and `.claude/` ship).
+**Do not confuse this file with `.ai/templates/CLAUDE.template.md`.** That template *becomes* a target project's `CLAUDE.md`; this root file documents the kit repo itself and is never instantiated into a target (targets receive their files through `/init-architecture`, drawn from the plugin's payload).
 
 ## The system the kit ships
 
@@ -46,7 +47,7 @@ grep -nE 'FILL:|\[\[DECISION' <file>
 
 The files reference each other by exact strings, section names, and phase numbers. These are the seams that break silently:
 
-1. **The profile triad.** `.ai/kit.json` `profile` ↔ `CLAUDE.md` line-1 import ↔ chapter filename in `.ai/process/`. Set by `/init-architecture` (Phase 3), changed only by `/switch-profile`; nothing else may restate the active profile. `verify-kit` target mode checks it (`kit-manifest`).
+1. **The profile triad.** `.ai/kit.json` `profile` ↔ `CLAUDE.md` line-1 import ↔ chapter filename in `.ai/process/`. Set by `/init-architecture` (Phase 3), changed only by `/switch-profile`; nothing else may restate the active profile. `verify-kit` target mode checks it (`kit-manifest`). The manifest's second field, `kitVersion`, is the install stamp: written from `.claude-plugin/plugin.json` `version` — the only place a kit version is stated — at init, restamped by `/update-kit`, which is the procedure that compares the two (ADR-0005).
 2. **Detection strings.** `/init-architecture` Phase 0 routes on the absence of `.ai/kit.json` plus `You are the **architect**` in the live `CLAUDE.md` (→ legacy-kit appendix) or pipeline-role text (→ pre-profile re-init). And the pipeline chapter must contain `Test-Writer` and must **never** use the bare word "architect" — that word belongs to `two-role.md` and the roster only (`verify-kit` `chapters` check; in target mode the same grep runs only on pre-profile installs, where the union roster doesn't yet legitimize it).
 3. **Phase numbers are confined to the chapters.** Numbering differs per profile (two-role: 1 Analyze · 2 Tests · 3 Plan · 4 Review — pipeline: 1 Design · 2 Transcription · 3 Gate · 4 Implementation · 5 Review), so the profile-agnostic files — shell template, `AGENTS.template.md`, `PROJECT_ARCHITECTURE.template.md`, both plan templates — name phases and never number them. Content grafted during migration converts numbers to names. `verify-kit` enforces it (`phase-numbers`, both modes).
 4. **Escalation triggers 1–4** live in `.ai/process/pipeline.md § Escalation` — pipeline only; two-role has no ladder by decision (the Architect already runs the strongest roster tier). The README summarizes them, and `/init-architecture` cites trigger 4 ("ADRs and `/init-architecture`") as its own model check.
@@ -65,7 +66,8 @@ No CI. After editing, run the kit's test surface (ADR-0006):
 ```bash
 bin/verify-kit.sh   # kit-repo mode: markers survive, chapters verbatim (no markers, detection
                     # strings intact), contract names pinned, floor anchors present, phase
-                    # numbers confined to the chapters, model names confined (coupling #8)
+                    # numbers confined to the chapters, model names confined (coupling #8),
+                    # plugin manifest sane (version pinned, self-marketplace, commands present)
 ```
 
 Three states — PASS / FAIL / NOT CHECKED — and a non-zero exit on any FAIL. What it cannot decide

@@ -54,8 +54,12 @@ grep '"profile"' .ai/kit.json  # same value
 ls .ai/process/<profile>.md    # chapter exists
 ```
 
-If `bin/verify-kit.sh` is reachable (kit repo checkout — pre-plugin it is not shipped into
-targets), run it for the full mechanical pass: the `kit-manifest` check covers exactly this.
+Then run the script the plugin ships for the full mechanical pass — the `kit-manifest` check
+covers exactly this:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .
+```
 
 ## Phase 4 — Report
 

@@ -1,0 +1,14 @@
+{
+  "name": "tdd-red-handoff",
+  "owner": {
+    "name": "coine.it",
+    "url": "https://github.com/weAreCoine"
+  },
+  "plugins": [
+    {
+      "name": "tdd-red-handoff",
+      "source": "./",
+      "description": "Test-driven multi-agent workflow kit: a hard wall between test-writing and implementation, two profiles (two-role | pipeline) chosen per task, artifact-based handoffs."
+    }
+  ]
+}

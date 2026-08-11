@@ -11,7 +11,9 @@ trigger 4 does not apply).
 ## Run
 
 ```bash
-bin/verify-kit.sh
+"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .   # the copy the plugin ships — works in any target
+bin/verify-kit.sh                             # kit repo checkout: prefer the tree's own copy
+                                              # (it is the version under edit)
 ```
 
 - Mode is auto-detected: a live `.ai/PROJECT_ARCHITECTURE.md` → **target** mode (markers must be
@@ -19,11 +21,9 @@ bin/verify-kit.sh
   leaks); otherwise the templates → **kit** mode (markers must *survive*, detection strings
   intact, contract names pinned, model names confined to README + template roster).
 - Override with `-m kit|target`; point it at another tree with a directory argument:
-  `bin/verify-kit.sh /path/to/project`.
-- If `bin/verify-kit.sh` does not exist here (a target project installed with
-  `cp -r .ai .claude`, which does not ship `bin/`): tell the user to run it from the kit
-  repository against this project — `<kit-repo>/bin/verify-kit.sh .` — and stop. Do **not**
-  reconstruct the checks by hand; the script is the single source of truth for them.
+  `"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" /path/to/project`.
+- Do **not** reconstruct the checks by hand, whatever happens to the script: it is the single
+  source of truth for them.
 
 ## Report
 

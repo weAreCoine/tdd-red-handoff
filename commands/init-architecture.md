@@ -4,16 +4,19 @@ description: Bootstrap (or migrate) the architecture-doc system for this project
 
 # /init-architecture
 
-Bootstrap the architecture-doc system for **this** repository from the templates in
-`.ai/templates/` and the process chapters in `.ai/process/`. Work the phases **in order** —
+Bootstrap the architecture-doc system for **this** repository from the templates and process
+chapters the plugin ships (`${CLAUDE_PLUGIN_ROOT}/.ai/templates/`,
+`${CLAUDE_PLUGIN_ROOT}/.ai/process/`). Work the phases **in order** —
 later ones depend on earlier output. Projects on the legacy two-role kit are migrated in place:
 Phase 0 routes them to the **Appendix — legacy-kit migration**.
 
 > **Model check first.** This command is an escalation-tier task: it must run on the roster's
 > **top design tier** — the Designer's row (the Architect's row is the same tier by default).
 > Resolve it from the live `.ai/PROJECT_ARCHITECTURE.md § Model Roster` if it exists (re-init),
-> otherwise from the prefilled roster in `.ai/templates/PROJECT_ARCHITECTURE.template.md`. If
-> the session is on another model, tell the user and stop before Phase 0.
+> otherwise from the prefilled roster the plugin ships in
+> `${CLAUDE_PLUGIN_ROOT}/.ai/templates/PROJECT_ARCHITECTURE.template.md` — pre-init the target
+> has no `.ai/` yet, so a project-relative path would resolve to nothing. If the session is on
+> another model, tell the user and stop before Phase 0.
 
 The templates carry their own instructions as markers. Treat them as binding:
 
@@ -28,14 +31,16 @@ project facts, and are never edited — here or later.
 
 ## Phase 0 — Preconditions & routing
 
-- Check `.ai/templates/` has `CLAUDE.template.md`, `AGENTS.template.md`,
-  `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`, `test_plan_template.md`, and that
-  `.ai/process/` has **both** `two-role.md` and `pipeline.md`. If any is missing, STOP and tell
-  the user to re-copy the kit's directories.
+- Check the plugin's payload: `${CLAUDE_PLUGIN_ROOT}/.ai/templates/` has `CLAUDE.template.md`,
+  `AGENTS.template.md`, `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`,
+  `test_plan_template.md`, and `${CLAUDE_PLUGIN_ROOT}/.ai/process/` has **both** `two-role.md`
+  and `pipeline.md`. If any is missing the installation is broken: STOP and tell the user to
+  reinstall the plugin.
 - Route on the live docs (`CLAUDE.md`, `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`):
   - **None exist** → fresh init: continue with Phase 1.
   - **They exist and `.ai/kit.json` exists** → re-init: ask whether to update in place or abort.
-    **Never overwrite a filled file blindly.**
+    **Never overwrite a filled file blindly.** (If the goal is only to pick up a newer kit
+    version, `/update-kit` is the lighter path — it never touches the live docs.)
   - **They exist, no `.ai/kit.json`, and `CLAUDE.md` contains `You are the **architect**`** →
     legacy two-role kit: go to the **Appendix** (facts survive, process is replaced).
   - **They exist, no `.ai/kit.json`, and `CLAUDE.md` describes the pipeline roles** →
@@ -80,13 +85,19 @@ Present the choices that inspection **cannot** settle, and wait for the user. Do
 
 ## Phase 3 — Scaffold
 
-Copy the templates to their live locations (do **not** edit the templates themselves):
+Install the kit files and instantiate the doc templates (edit the copies, never the plugin's
+own files):
 
 ```bash
-mkdir -p .ai/plans
-cp .ai/templates/CLAUDE.template.md               ./CLAUDE.md
-cp .ai/templates/AGENTS.template.md               ./AGENTS.md
-cp .ai/templates/PROJECT_ARCHITECTURE.template.md ./.ai/PROJECT_ARCHITECTURE.md
+mkdir -p .ai/plans .ai/process .ai/templates
+# process chapters + per-feature templates: installed into the project (committed),
+# so switching profile and writing plans work offline, without the plugin
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/process/two-role.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/pipeline.md .ai/process/
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/plan_template.md "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/test_plan_template.md .ai/templates/
+# doc templates: instantiated, not installed — their filled copies BECOME the live docs
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/CLAUDE.template.md               ./CLAUDE.md
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/AGENTS.template.md               ./AGENTS.md
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/PROJECT_ARCHITECTURE.template.md ./.ai/PROJECT_ARCHITECTURE.md
 ```
 
 Then wire the profile:
@@ -95,13 +106,19 @@ Then wire the profile:
    Phase-2 profile: `@.ai/process/two-role.md` or `@.ai/process/pipeline.md`. Nothing above it.
 2. Write `.ai/kit.json`:
    ```json
-   { "profile": "<two-role|pipeline>", "kitVersion": "TODO" }
+   { "profile": "<two-role|pipeline>", "kitVersion": "<version>" }
    ```
-   `kitVersion` becomes meaningful with plugin distribution; until then `TODO` is the honest
-   value — never invent a number.
+   `<version>` is read from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — the
+   authoritative kit version (ADR-0005). Never invent the number; `/update-kit` restamps it on
+   later kit updates.
+3. If `.claude/commands/` contains pre-plugin copies of the kit's own commands —
+   `init-architecture.md`, `migrate-architecture.md`, `switch-profile.md`, `update-kit.md`,
+   `update-models-roster.md`, `verify-kit.md` — delete them: the plugin serves the commands
+   now, and stale copies would shadow it. Touch nothing else in `.claude/`.
 
-`plan_template.md` and `test_plan_template.md` stay in `.ai/templates/` — they're referenced
-there per feature, not copied to root.
+`plan_template.md` and `test_plan_template.md` are the only templates **installed** into the
+project's `.ai/templates/` — the roles reference them per feature at runtime. The three doc
+templates are not installed: their filled copies are the live docs.
 
 ## Phase 4 — Fill (the work)
 
@@ -145,8 +162,8 @@ head -n 1 CLAUDE.md                        # must print the import matching .ai/
 Any hit = an unresolved marker or a leak. Fix it and re-run. Then eyeball the six invariants above —
 especially that the two floor anchors match and every contract name sits verbatim in a Toolchain
 first cell. Surviving `TODO`s are fine; report them as open decisions. For the full mechanical
-pass, `bin/verify-kit.sh` (in the kit repo — pre-plugin it is not shipped into targets) runs all
-of this as PASS/FAIL/NOT CHECKED.
+pass run the script the plugin ships — `"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .` — which
+reports all of this as PASS/FAIL/NOT CHECKED.
 
 ## Phase 6 — Report
 
@@ -174,12 +191,14 @@ Require a clean working tree and recommend a dedicated branch — one reviewable
   someone needed it). Classify `.ai/plans/*.md`: **done** vs **in-flight** (old-format plans have
   no sibling testplan and no `Gate:` row). Then run Phases 1–2 above (inspection may be light —
   the facts exist; the **profile question is mandatory**).
-- **M2 — Rebuild `CLAUDE.md`.** Replace it with the shell template, set the line-1 import for the
-  chosen profile, then graft each M1 fact section into its overlay counterpart, resolving that
-  section's markers exactly as the old file had — verbatim, not paraphrased. Grafted content that
-  cites phases by number switches to phase names (the shell is number-free).
-- **M3 — `AGENTS.md` / `.ai/PROJECT_ARCHITECTURE.md` (targeted edits, from the current templates,
-  not from memory).** AGENTS: neutral counterpart header, the conditional `Gate:` qualifier in
+- **M2 — Rebuild `CLAUDE.md`.** Run the Phase 3 install block first (chapters + per-feature
+  templates into `.ai/` — a legacy target has no `.ai/process/`). Then replace `CLAUDE.md` with
+  the shell template, set the line-1 import for the chosen profile, and graft each M1 fact
+  section into its overlay counterpart, resolving that section's markers exactly as the old file
+  had — verbatim, not paraphrased. Grafted content that cites phases by number switches to phase
+  names (the shell is number-free).
+- **M3 — `AGENTS.md` / `.ai/PROJECT_ARCHITECTURE.md` (targeted edits, from the plugin's current
+  templates, not from memory).** AGENTS: neutral counterpart header, the conditional `Gate:` qualifier in
   Step 1, "the design side's principle" in § Layered Architecture. PROJECT_ARCHITECTURE: neutral
   header; Contract references by phase name; insert the union § Model Roster (prefilled defaults)
   and Contract §6; relabel the § Toolchain first cells to the **contract names verbatim**
@@ -190,7 +209,8 @@ Require a clean working tree and recommend a dedicated branch — one reviewable
   **(a) grandfather** (implementer proceeds on the old plan; no gate guarantee — recommend when
   implementation is underway) or **(b) re-enter** (Designer retro-writes the testplan, Verifier
   gates it — recommend when tests exist but implementation hasn't started). The user decides.
-- **M5 — Wire and check.** Write `.ai/kit.json` (Phase 3 step 2), then run Phase 5 in full, plus:
+- **M5 — Wire and check.** Write `.ai/kit.json` and delete stale pre-plugin command copies
+  (Phase 3 steps 2–3), then run Phase 5 in full, plus:
   `grep -nwiE 'architect' CLAUDE.md AGENTS.md .ai/PROJECT_ARCHITECTURE.md` must be empty (the
   Architect role name lives in the roster and the two-role chapter, not in hand-written live
   text), and diff every fact against the M1 inventory — byte-identical, floor included. Report

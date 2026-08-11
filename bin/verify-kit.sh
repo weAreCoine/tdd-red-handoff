@@ -8,7 +8,9 @@
 #   kit      this repository, the kit producer. The markers ARE the product: they
 #            must SURVIVE in the templates. Detection strings intact, contract
 #            names pinned in the Toolchain first cells, coverage-floor anchors
-#            present, model names confined to README + template roster.
+#            present, model names confined to README + template roster, plugin
+#            manifest sane (ADR-0004/0005: version pinned, self-marketplace,
+#            commands in place).
 #   target   a project the kit is installed into. Markers must be GONE from the
 #            live docs, contract names verbatim in the live Toolchain, one floor
 #            in two files on fixed anchors, no model-name leaks outside the roster.
@@ -209,6 +211,35 @@ if [ "$MODE" = kit ]; then
   check_model_leaks "$T/PROJECT_ARCHITECTURE.template.md" \
     '^\./README\.md$|^\./\.ai/templates/PROJECT_ARCHITECTURE\.template\.md$' .
 
+  # plugin-manifest — the plugin is the distribution channel (ADR-0004): manifest present,
+  # version pinned as semver (ADR-0005: plugin.json "version" is the authoritative kit
+  # version), the repo lists itself as its own marketplace, all five commands in commands/.
+  problems=''; pname=''; pver=''
+  if [ -f .claude-plugin/plugin.json ]; then
+    pname=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -n 1)
+    pver=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -n 1)
+    [ -n "$pname" ] || problems="$problems$NL  plugin.json: no \"name\" field"
+    printf '%s' "$pver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
+      || problems="$problems$NL  plugin.json: \"version\" is '${pver:-missing}', expected MAJOR.MINOR.PATCH"
+  else
+    problems="$problems$NL  .claude-plugin/plugin.json missing"
+  fi
+  if [ -f .claude-plugin/marketplace.json ]; then
+    grep -q '"source"[[:space:]]*:[[:space:]]*"\./"' .claude-plugin/marketplace.json \
+      || problems="$problems$NL  marketplace.json: no plugin entry with source \"./\" (the repo is its own marketplace)"
+  else
+    problems="$problems$NL  .claude-plugin/marketplace.json missing"
+  fi
+  for c in init-architecture switch-profile update-kit update-models-roster verify-kit; do
+    [ -f "commands/$c.md" ] || problems="$problems$NL  commands/$c.md missing (plugin commands live in commands/, not .claude/commands/)"
+  done
+  if [ -z "$problems" ]; then
+    pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 5 commands in commands/"
+  else
+    fail plugin-manifest "plugin packaging broken:"
+    printf '%s\n' "$problems" | grep -v '^$' | detail
+  fi
+
   # printf, not a heredoc: heredocs need a temp file, and the script must also
   # run with a read-only working directory (sandboxed shells, CI checkouts).
   printf '%s\n' \
@@ -288,15 +319,17 @@ else # target
   # kit-manifest — the profile triad (kit.json <-> import line <-> chapter file).
   if [ -f .ai/kit.json ]; then
     profile=$(sed -n 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .ai/kit.json | head -n 1)
+    kitver=$(sed -n 's/.*"kitVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .ai/kit.json | head -n 1)
     line1=$(head -n 1 "$LIVE_CLAUDE" 2>/dev/null)
     problems=''
     [ -n "$profile" ] || problems="$problems$NL  .ai/kit.json: no \"profile\" field"
+    [ -n "$kitver" ] || problems="$problems$NL  .ai/kit.json: no \"kitVersion\" field (ADR-0005: the install stamp; /update-kit writes it)"
     [ "$line1" = "@.ai/process/$profile.md" ] \
       || problems="$problems$NL  CLAUDE.md line 1 is '$line1', expected '@.ai/process/$profile.md'"
     [ -f ".ai/process/$profile.md" ] \
       || problems="$problems$NL  chapter file .ai/process/$profile.md not found"
     if [ -z "$problems" ]; then
-      pass kit-manifest "triad agrees: profile '$profile' in kit.json, CLAUDE.md import, chapter file"
+      pass kit-manifest "triad agrees: profile '$profile' in kit.json, CLAUDE.md import, chapter file; kitVersion '$kitver'"
     else
       fail kit-manifest "kit.json / import line / chapter file disagree:"
       printf '%s\n' "$problems" | grep -v '^$' | detail

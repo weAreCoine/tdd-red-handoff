@@ -7,7 +7,7 @@ One kit, two **profiles**, chosen **per task, not once per project**:
 - **two-role** — an **Architect** (one top-tier role: designs, writes the failing tests, plans, reviews) plus the implementer. Fewest sessions, one handoff artifact per feature.
 - **pipeline** — a **Designer / Test-Writer / Verifier** trio on three model tiers plus the implementer, with a gate between the tests and the implementation. Tiered cost, two handoff artifacts per feature.
 
-This repo gives you the templates, the two process chapters, and four Claude Code slash commands: `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
+This repo is a **Claude Code plugin** (and its own marketplace): it gives you the templates, the two process chapters, and five slash commands — `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/update-kit` realigns an installed project to a new kit version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -137,8 +137,9 @@ The two-role profile has **no escalation ladder** — its Architect already runs
 **Prerequisites:** [Claude Code](https://www.anthropic.com/claude-code), and a project with a dependency manifest (`package.json`, `composer.json`, `pyproject.toml`, `go.mod`, …).
 
 ```bash
-# 1. Drop the kit's directories into your project root
-cp -r .ai .claude /path/to/your/project/
+# 1. In Claude Code, add the kit's marketplace and install the plugin (once per machine)
+/plugin marketplace add weAreCoine/tdd-red-handoff
+/plugin install tdd-red-handoff
 
 # 2. From your project, in Claude Code (on the roster's top design tier — an escalation-tier task):
 /init-architecture
@@ -146,9 +147,9 @@ cp -r .ai .claude /path/to/your/project/
 
 `/init-architecture` first routes on what it finds — fresh project, re-init, or an older install (see below) — then walks: **inspect** the repo → **resolve** the decisions it can't derive (it asks you) → **scaffold** the files and wire the profile (line-1 import + `.ai/kit.json`) → **fill** them from real project facts → **self-check** → **report**. The only point that needs you is the decisions phase.
 
-When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter), `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, and `.ai/kit.json` filled for your project, with `.ai/plans/` ready for the first handoff.
+When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter), `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, and `.ai/kit.json` filled for your project, both chapters in `.ai/process/` and the two per-feature templates in `.ai/templates/` (all committed — the process runs offline, without the plugin), with `.ai/plans/` ready for the first handoff.
 
-> The kit is slated to become a Claude Code plugin (ADR-0004) — install and update via the plugin manager instead of `cp -r`. Until that ships, copying the two directories is the supported path.
+> The commands live in the plugin, not in your repo — canonically namespaced (`/tdd-red-handoff:init-architecture`); the kit's docs use the short names. When a new kit version ships, update the plugin from the plugin manager (`/plugin`), then run `/update-kit` in each project: it realigns the installed chapters and per-feature templates and stamps `kit.json`'s `kitVersion`, never touching the docs you filled. Contributors can run a checkout directly with `claude --plugin-dir <path-to-checkout>`.
 
 ### Switching profiles
 
@@ -160,10 +161,11 @@ The switch is mechanical, offline, and lossless: both chapters are already insta
 
 ### Migrating an older install
 
-Don't re-init a project that already runs the kit: the filled facts are the expensive part. Re-copy the kit's directories (`cp -r .ai .claude` — overwrites templates, chapters, and commands, never the live docs), then run `/init-architecture`; its Phase 0 recognizes the situation:
+Don't re-init a project that already runs the kit: the filled facts are the expensive part. With the plugin installed, run the command that matches what the project has:
 
-- **Legacy two-role kit** (single "architect" role, no testplan, no gate, no `.ai/kit.json`) → the command's migration appendix: every project fact is carried over **byte-identical**, the process text is replaced, the union `§ Model Roster` is added, and you decide per in-flight plan whether to grandfather it or have it re-enter through the gate.
-- **Pre-profile pipeline install** (pipeline roles but no `.ai/kit.json`) → re-init in place: the profile pieces (import line, `kit.json`) are added as part of the update.
+- **Profile-aware install from before the plugin** (`.ai/kit.json` present, `kitVersion: "TODO"`) → `/update-kit`: realigns the installed chapters and per-feature templates to the plugin's and stamps the real version. It also deletes the pre-plugin copies of the kit's commands from `.claude/commands/` — the plugin serves the commands now, and stale copies would shadow it.
+- **Legacy two-role kit** (single "architect" role, no testplan, no gate, no `.ai/kit.json`) → `/init-architecture`, which routes to its migration appendix: every project fact is carried over **byte-identical**, the process text is replaced, the union `§ Model Roster` is added, and you decide per in-flight plan whether to grandfather it or have it re-enter through the gate.
+- **Pre-profile pipeline install** (pipeline roles but no `.ai/kit.json`) → `/init-architecture`, re-init in place: the profile pieces (import line, `kit.json`) are added as part of the update.
 
 ---
 
@@ -215,7 +217,7 @@ The process chapters in `.ai/process/` are **not** templates: they carry no mark
 
 And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile`, the `CLAUDE.md` line-1 import, and the chapter filename must name the same profile. `/switch-profile` is the only procedure that changes it.
 
-> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. `bin/` isn't shipped by `cp -r`; run it from the kit repo against the project: `<kit-repo>/bin/verify-kit.sh .`
+> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. The script ships inside the plugin, and `/verify-kit` runs it from there — no kit-repo checkout needed in a target project.
 
 ---
 
@@ -233,12 +235,15 @@ And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile
     test_plan_template.md         # Designer → Test-Writer (test-case inventory, pipeline only)
     plan_template.md              # design side → Implementer (implementation plan, both profiles)
   plans/                          # per-feature artifacts land here
-.claude/
-  commands/
-    init-architecture.md          # bootstrap; absorbs the legacy-kit migration as its appendix
-    switch-profile.md             # <two-role|pipeline> — rewrites the import line + kit.json
-    update-models-roster.md       # record a model change in the roster (the only concrete-name location)
-    verify-kit.md                 # run bin/verify-kit.sh and report its three-state output
+.claude-plugin/
+  plugin.json                     # name + version — the authoritative kit version (ADR-0005)
+  marketplace.json                # the repo is its own plugin marketplace (ADR-0004)
+commands/                         # served by the plugin — never installed into targets
+  init-architecture.md            # bootstrap; absorbs the legacy-kit migration as its appendix
+  switch-profile.md               # <two-role|pipeline> — rewrites the import line + kit.json
+  update-kit.md                   # realign installed chapters/templates to the plugin version
+  update-models-roster.md         # record a model change in the roster (the only concrete-name location)
+  verify-kit.md                   # run bin/verify-kit.sh and report its three-state output
 bin/
   verify-kit.sh                   # the kit's mechanical invariant check (kit-repo + target modes)
 ```
@@ -332,7 +337,6 @@ signatures, worth knowing when choosing a profile:
 
 ## Possible extensions (not implemented)
 
-- **Plugin distribution.** Decided (ADR-0004) but deliberately deferred: the kit becomes a Claude Code plugin — `.claude-plugin/`, commands served from the plugin, `/update-kit` to realign an installed project — replacing `cp -r` as the install path.
 - **A broad-evaluation reviewer.** A large-context model (e.g. Gemini) could do whole-repo sanity passes that complement the Verifier's focused, checklist-driven review. Deliberately left out — the per-feature review has been enough in practice so far. Add it if your projects grow past what a focused review comfortably covers.
 - **A CI verification gate.** `bin/verify-kit.sh` already enforces the mechanical invariants on demand; wiring it into CI so every commit runs it is the missing piece.
 

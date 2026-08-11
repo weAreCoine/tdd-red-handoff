@@ -1,0 +1,13 @@
+{
+  "name": "tdd-red-handoff",
+  "displayName": "Multi-Agent TDD Architecture Kit",
+  "version": "1.0.0",
+  "description": "Test-driven multi-agent workflow kit: a hard wall between test-writing and implementation, two profiles (two-role | pipeline) chosen per task, artifact-based handoffs.",
+  "author": {
+    "name": "coine.it",
+    "url": "https://github.com/weAreCoine"
+  },
+  "repository": "https://github.com/weAreCoine/tdd-red-handoff",
+  "license": "MIT",
+  "keywords": ["tdd", "workflow", "multi-agent", "architecture", "process"]
+}

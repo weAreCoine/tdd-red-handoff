@@ -16,11 +16,14 @@ and proves that invariant still holds.
 
 - **Bootstrapped project** — `.ai/PROJECT_ARCHITECTURE.md § Model Roster` exists → that table is
   the target.
-- **Kit repo, or a project not yet initialized** — no live doc, but
-  `.ai/templates/PROJECT_ARCHITECTURE.template.md` carries the prefilled roster → that table is
-  the target. If the repo's README carries the kit's defaults table (i.e. this is the kit repo
-  itself), update it in the same pass — those are the only two concrete-name locations there.
-- Neither file exists → STOP: there is no roster to update; point the user to `/init-architecture`.
+- **Kit repo checkout** — no live doc, but the working tree itself carries
+  `.ai/templates/PROJECT_ARCHITECTURE.template.md` with the prefilled roster → that table is the
+  target, together with the README's defaults table — those are the kit repo's only two
+  concrete-name locations.
+- **Neither** → STOP: there is no roster to update; point the user to `/init-architecture`.
+  Never edit the plugin's own copies under `${CLAUDE_PLUGIN_ROOT}` — that is a managed cache:
+  changes there are lost on update and would bleed into every project. Kit defaults change in
+  the kit repository.
 
 ## Phase 1 — Collect the new lineup (INTERACTIVE)
 
@@ -41,8 +44,8 @@ identified the kit repo). No other file should need touching — that is the inv
 ## Phase 3 — Self-check
 
 1. Grep each **old** model name across the repo's process and facts files (`CLAUDE.md`,
-   `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, `.claude/commands/*.md`; in the kit repo also the
-   templates and README). Any hit is a leak — someone inlined a name since the last update. Fix
+   `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, `.ai/process/`, `.ai/templates/`; in the kit repo
+   also `commands/*.md` and the README). Any hit is a leak — someone inlined a name since the last update. Fix
    it (make it role-relative) and report it. Historical artifacts (`.ai/plans/*` Logs, ADRs) may
    keep old names — they are records, not references.
 2. Grep each **new** name: hits are allowed only in the roster location(s) found in Phase 0.

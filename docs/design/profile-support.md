@@ -23,6 +23,9 @@ commands/
   switch-profile.md      # <two-role|pipeline>
   update-kit.md          # realign .ai/process + .ai/templates to the plugin version
   update-models-roster.md
+  verify-kit.md          # added by ADR-0006, after this layout was first drawn
+bin/
+  verify-kit.sh          # ships in the plugin: /verify-kit works in any target
 .ai/
   process/
     two-role.md          # roles + phases, ships verbatim, no markers
@@ -154,6 +157,19 @@ filename must agree. `/switch-profile` owns all three; nothing else may restate 
    *Deferred by agreement (2026-08-07) to after the two-profile test campaign on the test
    project: `cp -r .ai .claude` stays the install path for testing, and `/update-kit` arrives
    with the plugin. Step 7 therefore landed in pre-plugin form, before this step.*
+   *Done 2026-08-11: `.claude-plugin/` written — `plugin.json` carries the authoritative
+   version (1.0.0), `marketplace.json` lists the repo itself with source `"./"`. Commands
+   moved `.claude/commands/` → `commands/` and re-rooted onto `${CLAUDE_PLUGIN_ROOT}`: the
+   init model check now reads the plugin's template roster (the pre-init silent-nothing case
+   this step was warned about), init scaffolds chapters + per-feature templates from the
+   plugin into the target and stamps the real `kitVersion`, and the migration appendix
+   installs them too (M2) and deletes stale pre-plugin command copies (M5). `/update-kit`
+   written: four-file realign + `kitVersion` stamp, refuses backwards, live docs never
+   touched. `bin/verify-kit.sh` ships in the plugin, so `/verify-kit` and the commands'
+   self-checks run in any target without a kit checkout; kit mode gained the
+   `plugin-manifest` check (semver pinned, self-marketplace, five commands present) and
+   target mode's `kit-manifest` now requires the `kitVersion` stamp. README and root
+   `CLAUDE.md` rewritten for plugin install; `cp -r` no longer documented anywhere.*
 7. **Commands**: `/switch-profile` and `/update-kit` new; `/init-architecture` gains the
    legacy-kit path and writes `kit.json`; `/migrate-architecture` deleted. Every path in every
    command must be re-rooted to `${CLAUDE_PLUGIN_ROOT}` — the sharpest case is
