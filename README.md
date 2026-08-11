@@ -272,6 +272,25 @@ Cost (USD) and active time by bucket:
 | Review | 3.69 · 3m14s | 3.45 · 6m19s | −7% |
 | **Total** | **16.06 · 25m07s** | **20.55 · 42m20s** | **+28%** |
 
+Token consumption by model — rows name roles; the *Default models* table above resolves
+them (token counts cross-checked to the unit against an independent accounting tool):
+
+| Run | Model (by role) | input | output | cache read | cache write | Cost USD |
+|---|---|---:|---:|---:|---:|---:|
+| two-role | Architect's (all four phases) | 135 | 74.6k | 3,696k | 276k | 12.95 |
+| two-role | Implementer CLI | 3,536k¹ | 15.0k | — | — | 3.11 |
+| pipeline | Designer's (Design only) | 16 | 46.5k | 831k | 146k | 6.07 |
+| pipeline | Test-Writer's | 70 | 35.6k | 4,314k | 129k | 1.73 |
+| pipeline | Verifier's (Gate+Plan, Review, advisor calls²) | 573k | 82.5k | 4,135k | 271k | 9.70 |
+| pipeline | Implementer CLI | 3,381k¹ | 17.1k | — | — | 3.05 |
+
+¹ The CLI's log folds cached reads into `input`.
+² Harness-billed advisor iterations inside the Test-Writer's session run on the
+  Verifier's tier and are counted there.
+
+The row to read: the top design tier goes from $12.95 / ~4.0M processed tokens
+(two-role, where it carries everything) to $6.07 / ~1.0M (pipeline, Design only).
+
 What the one run showed, in decreasing confidence:
 
 - **The top-tier saving is real and large.** Under two-role the Architect's model
