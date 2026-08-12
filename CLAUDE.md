@@ -47,7 +47,7 @@ grep -nE 'FILL:|\[\[DECISION' <file>
 
 The files reference each other by exact strings, section names, and phase numbers. These are the seams that break silently:
 
-1. **The profile triad.** `.ai/kit.json` `profile` ↔ `CLAUDE.md` line-1 import ↔ chapter filename in `.ai/process/`. Set by `/init-architecture` (Phase 3), changed only by `/switch-profile`; nothing else may restate the active profile. `verify-kit` target mode checks it (`kit-manifest`). The manifest's second field, `kitVersion`, is the install stamp: written from `.claude-plugin/plugin.json` `version` — the only place a kit version is stated — at init, restamped by `/update-kit`, which is the procedure that compares the two (ADR-0005).
+1. **The profile triad.** `.ai/kit.json` `profile` ↔ `CLAUDE.md` line-1 import ↔ chapter filename in `.ai/process/`. Set by `/init-architecture` (Phase 3), changed only by `/switch-profile`; nothing else may restate the active profile. `verify-kit` target mode checks it (`kit-manifest`). The manifest's second field, `kitVersion`, is the install stamp: written from `.claude-plugin/plugin.json` `version` — the only place a kit version is stated — at init, restamped by `/update-kit`, the procedure that realigns the install; `verify-kit -p <plugin-root>` is the check that compares the two, plus the four installed kit files byte-for-byte (`kit-version` / `install-files`, target mode — ADR-0005).
 2. **Detection strings.** `/init-architecture` Phase 0 routes on the absence of `.ai/kit.json` plus `You are the **architect**` in the live `CLAUDE.md` (→ legacy-kit appendix) or pipeline-role text (→ pre-profile re-init). And the pipeline chapter must contain `Test-Writer` and must **never** use the bare word "architect" — that word belongs to `two-role.md` and the roster only (`verify-kit` `chapters` check; in target mode the same grep runs only on pre-profile installs, where the union roster doesn't yet legitimize it).
 3. **Phase numbers are confined to the chapters.** Numbering differs per profile (two-role: 1 Analyze · 2 Tests · 3 Plan · 4 Review — pipeline: 1 Design · 2 Transcription · 3 Gate · 4 Implementation · 5 Review), so the profile-agnostic files — shell template, `AGENTS.template.md`, `PROJECT_ARCHITECTURE.template.md`, both plan templates — name phases and never number them. Content grafted during migration converts numbers to names. `verify-kit` enforces it (`phase-numbers`, both modes).
 4. **Escalation triggers 1–4** live in `.ai/process/pipeline.md § Escalation` — pipeline only; two-role has no ladder by decision (the Architect already runs the strongest roster tier). The README summarizes them, and `/init-architecture` cites trigger 4 ("ADRs and `/init-architecture`") as its own model check.
@@ -72,5 +72,7 @@ bin/verify-kit.sh   # kit-repo mode: markers survive, chapters verbatim (no mark
 
 Three states — PASS / FAIL / NOT CHECKED — and a non-zero exit on any FAIL. What it cannot decide
 mechanically (README mirror fidelity, correct *use* of the shared vocabularies) it lists instead
-of omitting: for those, walk the couplings list above for whichever file changed. Commits follow
+of omitting: for those, walk the couplings list above for whichever file changed. In target mode
+the script also accepts `-p <plugin-root>` (install-integrity checks — the plugin commands pass
+`${CLAUDE_PLUGIN_ROOT}`; kit mode ignores the flag). Commits follow
 semantic prefixes (`feat:`, `fix:`, `docs:`, `chore:`) on `feature/*` branches.

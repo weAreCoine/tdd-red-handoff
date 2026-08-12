@@ -22,18 +22,26 @@
 #                    that silently skipped what it cannot check would commit the
 #                    same sin the Kit forbids every role.
 #
+# -p <plugin-root> (target mode only; kit mode ignores it): also check install
+# integrity against the plugin payload — the four installed kit files byte-identical
+# to the plugin's copies, kit.json's kitVersion equal to plugin.json's version
+# (ADR-0005). Without -p those checks are NOT CHECKED: the script cannot locate
+# the plugin on its own; the plugin commands pass "${CLAUDE_PLUGIN_ROOT}".
+#
 # Exit codes: 0 = no FAIL · 1 = at least one FAIL · 2 = usage / not a kit tree.
 #
-# Usage: verify-kit.sh [-m kit|target] [dir]
+# Usage: verify-kit.sh [-m kit|target] [-p plugin-root] [dir]
 
 set -u
 
-usage() { echo "usage: $0 [-m kit|target] [dir]" >&2; exit 2; }
+usage() { echo "usage: $0 [-m kit|target] [-p plugin-root] [dir]" >&2; exit 2; }
 
 MODE=auto
-while getopts m:h opt; do
+PLUGIN_ROOT=''
+while getopts m:p:h opt; do
   case $opt in
     m) MODE=$OPTARG ;;
+    p) PLUGIN_ROOT=$OPTARG ;;
     h|*) usage ;;
   esac
 done
@@ -41,6 +49,12 @@ shift $((OPTIND - 1))
 ROOT=${1:-.}
 
 [ -d "$ROOT" ] || { echo "verify-kit: no such directory: $ROOT" >&2; exit 2; }
+if [ -n "$PLUGIN_ROOT" ]; then
+  [ -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ] \
+    || { echo "verify-kit: not a plugin root (no .claude-plugin/plugin.json): $PLUGIN_ROOT" >&2; exit 2; }
+  # Resolve before cd: a relative -p would break once we chdir into ROOT.
+  PLUGIN_ROOT=$(cd "$PLUGIN_ROOT" && pwd)
+fi
 cd "$ROOT" || exit 2
 
 if [ "$MODE" = auto ]; then
@@ -70,6 +84,12 @@ lint
 format
 format:check
 coverage'
+
+# The four files the plugin installs verbatim into a target — /update-kit's exact scope.
+KIT_FILES='.ai/process/two-role.md
+.ai/process/pipeline.md
+.ai/templates/plan_template.md
+.ai/templates/test_plan_template.md'
 
 NL='
 '
@@ -351,10 +371,57 @@ else # target
       fail phase-numbers "hardcoded phase numbers in profile-agnostic files:"
       printf '%s\n' "$ph" | detail
     fi
+
+    # install-integrity (with -p only) — the install measured against the plugin payload.
+    # Two drift kinds, told apart by the version stamp: differing versions = the plugin
+    # moved on (benign, /update-kit realigns); same version but differing bytes = a
+    # shipped file was edited in the target (the serious case).
+    if [ -n "$PLUGIN_ROOT" ]; then
+      plugver=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                  "$PLUGIN_ROOT/.claude-plugin/plugin.json" | head -n 1)
+
+      # kit-version — the install stamp equals the plugin's version (ADR-0005).
+      if [ -n "$kitver" ] && [ "$kitver" = "$plugver" ]; then
+        pass kit-version "install stamp matches the plugin: $plugver"
+      else
+        fail kit-version "kitVersion '${kitver:-missing}' != plugin version '${plugver:-missing}' — run /update-kit to realign and restamp"
+      fi
+
+      # install-files — the four installed kit files, byte-identical to the plugin's copies.
+      problems=''
+      OLDIFS=$IFS; IFS=$NL
+      for f in $KIT_FILES; do
+        IFS=$OLDIFS
+        if [ ! -f "$f" ]; then
+          problems="$problems$NL  $f: missing from the project"
+        elif [ ! -f "$PLUGIN_ROOT/$f" ]; then
+          problems="$problems$NL  $f: no counterpart in the plugin payload"
+        elif ! cmp -s "$f" "$PLUGIN_ROOT/$f"; then
+          if [ "$kitver" = "$plugver" ]; then
+            problems="$problems$NL  $f: differs from the plugin's copy at the SAME version ($plugver) — a shipped file was edited in the target; /update-kit restores it (project facts belong in the live docs, never in shipped files)"
+          else
+            problems="$problems$NL  $f: differs from the plugin's copy (install ${kitver:-?} vs plugin ${plugver:-?} — expected drift; /update-kit realigns)"
+          fi
+        fi
+        IFS=$NL
+      done
+      IFS=$OLDIFS
+      if [ -z "$problems" ]; then
+        pass install-files "all 4 installed kit files byte-identical to the plugin's copies"
+      else
+        fail install-files "installed kit files diverge from the plugin payload:"
+        printf '%s\n' "$problems" | grep -v '^$' | detail
+      fi
+      NOTE_PLUGIN=''
+    else
+      NOTE_PLUGIN='  - Install integrity (4 kit files byte-identical to the plugin, kitVersion vs
+    plugin version): no plugin root given — rerun with -p "$CLAUDE_PLUGIN_ROOT".'
+    fi
     NOTE_PROFILE=''
   else
-    NOTE_PROFILE="  - kit-manifest triad and phase-number confinement: pre-profile installation
-    (no .ai/kit.json yet) — these checks activate with profile support."
+    NOTE_PROFILE="  - kit-manifest triad, phase-number confinement, install integrity: pre-profile
+    installation (no .ai/kit.json yet) — these checks activate with profile support."
+    NOTE_PLUGIN=''
   fi
 
   # printf, not a heredoc — see the kit-mode block for why.
@@ -369,6 +436,7 @@ else # target
     '  - Plan/testplan Logs may RECORD model names (records, not references); prescriptive' \
     '    model naming in a plan is not greppable (Contract §6 covers the live docs).'
   if [ -n "$NOTE_PROFILE" ]; then printf '%s\n' "$NOTE_PROFILE"; fi
+  if [ -n "$NOTE_PLUGIN" ]; then printf '%s\n' "$NOTE_PLUGIN"; fi
 
 fi
 

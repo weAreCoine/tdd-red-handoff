@@ -55,11 +55,16 @@ ls .ai/process/<profile>.md    # chapter exists
 ```
 
 Then run the script the plugin ships for the full mechanical pass — the `kit-manifest` check
-covers exactly this:
+covers exactly this, and `-p` adds the install-integrity checks (chapters and per-feature
+templates byte-identical to the plugin, `kitVersion` current):
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .
+"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" -p "${CLAUDE_PLUGIN_ROOT}" .
 ```
+
+A `kit-version` or `install-files` FAIL here is **pre-existing drift, not a switch bug** — the
+switch touched exactly two files, neither of them a shipped kit file. Report the switch as done,
+report the drift separately, and point to `/update-kit` (which never changes the profile).
 
 ## Phase 4 — Report
 
