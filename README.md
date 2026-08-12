@@ -217,7 +217,7 @@ The process chapters in `.ai/process/` are **not** templates: they carry no mark
 
 And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile`, the `CLAUDE.md` line-1 import, and the chapter filename must name the same profile. `/switch-profile` is the only procedure that changes it.
 
-> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. The script ships inside the plugin, and `/verify-kit` runs it from there — no kit-repo checkout needed in a target project.
+> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. The script ships inside the plugin, and `/verify-kit` runs it from there — no kit-repo checkout needed in a target project. With `-p <plugin-root>` (the plugin commands pass `${CLAUDE_PLUGIN_ROOT}`) target mode also verifies **install integrity**: the four installed kit files byte-identical to the plugin's copies, and the `kitVersion` stamp equal to the plugin's version — so `/init-architecture`, `/switch-profile` and `/update-kit` end on a check that compares the install against the payload that produced it. Without `-p` those checks are listed under NOT CHECKED.
 
 ---
 
@@ -245,7 +245,8 @@ commands/                         # served by the plugin — never installed int
   update-models-roster.md         # record a model change in the roster (the only concrete-name location)
   verify-kit.md                   # run bin/verify-kit.sh and report its three-state output
 bin/
-  verify-kit.sh                   # the kit's mechanical invariant check (kit-repo + target modes)
+  verify-kit.sh                   # the kit's mechanical invariant check (kit-repo + target modes;
+                                  # -p <plugin-root> adds the install-integrity checks)
 ```
 
 ---

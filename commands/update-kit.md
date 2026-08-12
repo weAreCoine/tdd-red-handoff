@@ -55,13 +55,14 @@ Nothing else is written.
 ## Phase 3 — Self-check
 
 ```bash
-cmp .ai/process/two-role.md             "${CLAUDE_PLUGIN_ROOT}/.ai/process/two-role.md"
-cmp .ai/process/pipeline.md             "${CLAUDE_PLUGIN_ROOT}/.ai/process/pipeline.md"
-cmp .ai/templates/plan_template.md      "${CLAUDE_PLUGIN_ROOT}/.ai/templates/plan_template.md"
-cmp .ai/templates/test_plan_template.md "${CLAUDE_PLUGIN_ROOT}/.ai/templates/test_plan_template.md"
-grep '"kitVersion"' .ai/kit.json                # must print the plugin's version
-"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .     # full mechanical pass, target mode
+grep '"kitVersion"' .ai/kit.json   # must print the plugin's version
+"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" -p "${CLAUDE_PLUGIN_ROOT}" .
 ```
+
+The script's `install-files` and `kit-version` checks verify exactly what this update just did —
+the four files byte-identical to the plugin's copies, the stamp equal to the plugin's version —
+so a FAIL on either means the update itself went wrong. Do not reconstruct the comparisons by
+hand: the script is their single source of truth (ADR-0006).
 
 ## Phase 4 — Report
 

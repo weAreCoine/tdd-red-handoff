@@ -162,8 +162,11 @@ head -n 1 CLAUDE.md                        # must print the import matching .ai/
 Any hit = an unresolved marker or a leak. Fix it and re-run. Then eyeball the six invariants above —
 especially that the two floor anchors match and every contract name sits verbatim in a Toolchain
 first cell. Surviving `TODO`s are fine; report them as open decisions. For the full mechanical
-pass run the script the plugin ships — `"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" .` — which
-reports all of this as PASS/FAIL/NOT CHECKED.
+pass run the script the plugin ships —
+`"${CLAUDE_PLUGIN_ROOT}/bin/verify-kit.sh" -p "${CLAUDE_PLUGIN_ROOT}" .` — which reports all of
+this as PASS/FAIL/NOT CHECKED; `-p` adds the install-integrity checks, and right after an init
+they must all PASS (this command just copied those files and stamped that version — a FAIL here
+means the init itself went wrong, not drift).
 
 ## Phase 6 — Report
 
