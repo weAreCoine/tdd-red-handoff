@@ -30,6 +30,11 @@
 >
 > **Design side:** tests and this plan are done — under pipeline, from the gated testplan.
 > **Implementer:** make the listed tests pass, nothing more.
+>
+> **Tier substitution:** {none | {role} ran below its roster tier — see `PROJECT_ARCHITECTURE.md § Model Roster`}
+>
+> `none` is the normal case. A **record, not a reference**: it stays as written after the
+> substitution is lifted — what matters later is the tier this artifact was produced on.
 
 ## 1. Goal
 

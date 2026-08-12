@@ -51,6 +51,9 @@
 6. **Model names live only in § Model Roster.** `CLAUDE.md` and `AGENTS.md` refer to models by role
    ("the Designer's model") and resolve them in the roster below — the only place a concrete model name may
    appear. Record changes with `/update-models-roster`; never inline a model name into a process file.
+   A **tier substitution** — a roster tier temporarily unavailable, so a role runs below it — is recorded
+   in the roster's substitution block, in prose, and never by editing a `Current model` cell: the cell
+   states the tier this project wants, the block states what is actually running and until when.
 
 ## Overview
 
@@ -147,6 +150,22 @@ Pinned from the manifest:
 | Verifier | strong review tier — checklist verification against a written reference | Claude Opus 5 |
 | Test-Writer | cost-efficient tier — mechanical transcription of a precise inventory | Claude Sonnet 5 |
 | Implementer | external code-gen agent, governed by `AGENTS.md` | Codex |
+
+### Tier substitutions (temporary)
+
+> A roster tier can become unavailable — quota exhausted, access revoked, provider outage. When it
+> does, the role keeps its row above (that is the tier this project wants) and the substitution is
+> recorded here, one line per role, by the user's decision — never by an agent's own assumption.
+> The process chapters read this block: with a line here, a role whose session model doesn't match
+> its row proceeds and declares the substitution; with no line, it stops. Every design-side
+> artifact produced under a substitution records it too (`plan_template.md` header row, testplan
+> Log), because that record must stay true after the substitution is lifted.
+
+- {role} — running on {model actually used} since {date}, until {date or the condition that lifts it}. Reason: {why the roster tier is unavailable}.
+
+<!-- FILL: delete the placeholder line above unless a substitution is active at init; keep the
+     heading and its note — they are a live convention, not scaffolding. Lift a substitution by
+     deleting its line (via `/update-models-roster`), not by rewriting the roster table. -->
 
 ## Open Follow-ups (deferred — don't forget)
 

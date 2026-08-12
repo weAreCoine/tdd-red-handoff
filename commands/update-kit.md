@@ -67,6 +67,10 @@ hand: the script is their single source of truth (ADR-0006).
 ## Phase 4 — Report
 
 - Old `kitVersion` → new.
+- If the amended chapters mention a roster subsection this project's `PROJECT_ARCHITECTURE.md`
+  does not have yet (`### Tier substitutions (temporary)`), say so and say it is benign: no
+  substitution recorded is the normal state, and `/update-models-roster` creates the subsection the
+  first time one is. This command does not touch live docs.
 - Per file: replaced (what changed) or already identical; any overwritten local drift from
   Phase 1, quoted.
 - The boundary, restated: live docs never change here. If the new kit version changed the

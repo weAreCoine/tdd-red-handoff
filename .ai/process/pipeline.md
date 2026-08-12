@@ -26,9 +26,24 @@ To record a model change, run `/update-models-roster`; never inline a name into 
 
 **Determining your role:** the user names the phase; otherwise infer it from the feature's
 testplan `Status` (see Artifacts below). At the start of a phase, check that the session's
-model matches your role's row in `PROJECT_ARCHITECTURE.md § Model Roster` — if it doesn't, say
-so and stop rather than running a phase on the wrong tier. The roster records this project's
-assignments; tune them with `/update-models-roster`, but keep the
+model matches your role's row in `PROJECT_ARCHITECTURE.md § Model Roster`. If it doesn't, there
+are exactly two cases:
+
+- **No substitution recorded in the roster** → say so and stop, rather than running a phase on
+  the wrong tier.
+- **A tier substitution is recorded for your role** and this session's model is the substitute →
+  proceed, and open the phase by saying so: "tier substitution active — this phase is running
+  below its roster tier." Nothing else changes: same phases, same wall, same artifacts. Record it
+  in the artifact you write (the testplan Log entry for your phase, or the plan's substitution
+  row).
+
+A substitution is the user's call, never yours. That a tier is unavailable — quota exhausted,
+access revoked, provider outage — is a fact only they can report, and only they can judge the
+work worth doing without it. Never assume one, and never edit the roster's `Current model` cell
+to make the check pass: that erases the tier the project actually wants and leaves no record that
+this work ran below it.
+
+The roster records this project's assignments; tune them with `/update-models-roster`, but keep the
 direction: **the scarce top-tier model is spent on Phase 1 and on escalations only.**
 
 **The hard wall is unchanged:** whoever writes tests never writes application code, and the
@@ -150,6 +165,22 @@ is spent only where a weaker model would decide worse. These triggers bring it b
 
 When a trigger fires, say so explicitly ("escalation trigger N — this phase requires the
 Designer's model") so the user can switch model or session.
+
+**When the Designer's tier is unavailable** — a tier substitution for the Designer is recorded in
+the roster — the ladder has no top rung. The triggers do not lapse; they turn into decisions the
+user has to make with the cost stated:
+
+1. Triggers 1–3 still fire. Announce the trigger as usual, then say that the escalation target is
+   substituted, and run the phase on the substitute. Record both facts — trigger number and
+   substitution — in the artifact's Log.
+2. Trigger 4 is the one to defer when deferring is possible: ADRs and `/init-architecture` decide
+   the things that propagate furthest and are the least recoverable downstream.
+3. When the substitute is the **Verifier's own model**, the gate stops being independent: the same
+   model wrote the reference and now checks the tests against it — verification against a
+   reference degrades into re-reading one's own judgment. The mitigations are unchanged but now
+   load-bearing: keep the phases in separate sessions, judge strictly from the artifacts, and note
+   in the testplan Log that Design and gate shared a tier. Treat an `APPROVED` reached this way as
+   weaker evidence than a normal gate — it is the first thing a post-mortem should suspect.
 
 ## Test Philosophy — who it binds
 

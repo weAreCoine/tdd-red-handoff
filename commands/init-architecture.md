@@ -16,7 +16,13 @@ Phase 0 routes them to the **Appendix — legacy-kit migration**.
 > otherwise from the prefilled roster the plugin ships in
 > `${CLAUDE_PLUGIN_ROOT}/.ai/templates/PROJECT_ARCHITECTURE.template.md` — pre-init the target
 > has no `.ai/` yet, so a project-relative path would resolve to nothing. If the session is on
-> another model, tell the user and stop before Phase 0.
+> another model, tell the user and stop before Phase 0 — **unless** they answer that the tier is
+> unavailable (quota exhausted, access revoked, provider outage) and they want to proceed anyway.
+> Then this init runs under a **tier substitution**: say so before Phase 0, state the cost plainly
+> (an init resolves the decisions that propagate the furthest — this is the escalation the pipeline
+> chapter says to defer when deferring is possible), and if they still want it, record the
+> substitution in the roster you are about to write, in `### Tier substitutions (temporary)`, as
+> part of Phase 3. Never assume the unavailability yourself: only the user can report it.
 
 The templates carry their own instructions as markers. Treat them as binding:
 

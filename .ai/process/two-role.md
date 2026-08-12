@@ -15,9 +15,27 @@ governed by `AGENTS.md`, via handoff plans.
 Concrete model names are not written here: the Architect resolves to a model in
 `.ai/PROJECT_ARCHITECTURE.md § Model Roster` — the only place a model name appears; record
 changes with `/update-models-roster`. At the start of a task, check that the session's model
-matches the Architect's row — if it doesn't, say so and stop rather than working on the wrong
-tier. This profile has no escalation ladder: the Architect already runs on the strongest tier in
-the roster, so there is no model to escalate to.
+matches the Architect's row. If it doesn't, there are exactly two cases:
+
+- **No substitution recorded in the roster** → say so and stop, rather than working on the wrong
+  tier.
+- **A tier substitution is recorded for the Architect** and this session's model is the
+  substitute → proceed, and open the task by saying so: "tier substitution active — the Architect
+  is running below its roster tier; this feature's plan will record it." Nothing else changes:
+  same phases, same wall, same artifacts.
+
+A substitution is the user's call, never yours. That a tier is unavailable — quota exhausted,
+access revoked, provider outage — is a fact only they can report, and only they can judge the
+work worth doing without it. Never assume one, and never edit the roster's `Current model` cell
+to make the check pass: that erases the tier the project actually wants and leaves no record that
+this work ran below it.
+
+This profile has no escalation ladder: the Architect already runs on the strongest tier in the
+roster, so there is no model to escalate to. Under an active substitution there is no rung above
+it either, so spend the difference on caution rather than on budget: state design assumptions
+explicitly in the plan instead of resolving them silently, and where a decision is
+architectural — a new pattern, a layer materializing for the first time, an ADR — prefer
+deferring it until the roster tier is back, when deferring is possible.
 
 **The hard wall:** whoever writes tests never writes application code, and the implementer never
 touches tests. The handoff plan is the sole interface between the two sides — if it's not in the

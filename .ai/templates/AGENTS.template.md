@@ -36,6 +36,9 @@ Before writing ANY code, read the handoff plan specified by the user in `.ai/pla
 carries a `Gate:` row in §3, a plan without `Gate: APPROVED` is not ready; a plan without that
 row comes from a profile with no gate and stands on its own).
 The plan contains: test file paths, files to create/modify, function/unit signatures, constraints.
+A `Tier substitution` row other than `none` records which design-side role produced the plan below
+its roster tier; it is a record for later review and changes nothing for you — implement exactly
+what the plan says, no more cautiously and no more freely.
 Follow it precisely. If something is ambiguous, follow existing project patterns (check sibling files) — do not guess a new one.
 
 ### Step 2: Implement (Minimum Code)

@@ -109,3 +109,8 @@
 - {date} · **Test-Writer** — Status: RED. {n} tests written, all failing. Output summary:
   {key failure lines}. Flags: {none | ambiguities or suspected missing cases, one per line}.
 - {date} · **Verifier** — Status: {APPROVED | REJECTED(n)}. {point-by-point notes if rejected}.
+
+<!-- FILL: if a phase ran under a tier substitution (`PROJECT_ARCHITECTURE.md § Model Roster`),
+     append it to that phase's own entry — "ran below roster tier" — plus, when the gate and the
+     design phase ended up on the same model, one line saying so: that is the case where the
+     verdict rests on less independence than usual, and the Log is where a post-mortem finds it. -->
