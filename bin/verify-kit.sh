@@ -234,7 +234,7 @@ if [ "$MODE" = kit ]; then
 
   # plugin-manifest — the plugin is the distribution channel (ADR-0004): manifest present,
   # version pinned as semver (ADR-0005: plugin.json "version" is the authoritative kit
-  # version), the repo lists itself as its own marketplace, all five commands in commands/.
+  # version), the repo lists itself as its own marketplace, all six commands in commands/.
   problems=''; pname=''; pver=''
   if [ -f .claude-plugin/plugin.json ]; then
     pname=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -n 1)
@@ -251,11 +251,11 @@ if [ "$MODE" = kit ]; then
   else
     problems="$problems$NL  .claude-plugin/marketplace.json missing"
   fi
-  for c in init-architecture switch-profile update-kit update-models-roster verify-kit; do
+  for c in init-architecture show-profile switch-profile update-kit update-models-roster verify-kit; do
     [ -f "commands/$c.md" ] || problems="$problems$NL  commands/$c.md missing (plugin commands live in commands/, not .claude/commands/)"
   done
   if [ -z "$problems" ]; then
-    pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 5 commands in commands/"
+    pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 6 commands in commands/"
   else
     fail plugin-manifest "plugin packaging broken:"
     printf '%s\n' "$problems" | grep -v '^$' | detail

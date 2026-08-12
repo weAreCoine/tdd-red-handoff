@@ -8,12 +8,12 @@ This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is
 
 - `.ai/templates/` — five templates that other projects instantiate
 - `.ai/process/` — the two process chapters (`two-role.md`, `pipeline.md`): each profile's roles-and-phases contract, shipped **verbatim** (no markers, no project facts, never edited in a target)
-- `commands/` — five slash commands (`/init-architecture`, `/switch-profile`, `/update-kit`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep — served to the operator by the plugin, never installed into targets (ADR-0004)
+- `commands/` — six slash commands (`/init-architecture`, `/show-profile`, `/switch-profile`, `/update-kit`, `/update-models-roster`, `/verify-kit`) that drive instantiation and upkeep — served to the operator by the plugin, never installed into targets (ADR-0004)
 - `.claude-plugin/` — the plugin manifests: `plugin.json` (its `version` is the authoritative kit version — ADR-0005) and `marketplace.json` (the repo is its own marketplace, plugin source `"./"`)
 - `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes; ships inside the plugin, so `/verify-kit` works in any target
 - `README.md` — the approach itself, kept as a faithful mirror of the templates and commands
 
-Target projects install the kit as a Claude Code plugin — `/plugin marketplace add weAreCoine/tdd-red-handoff`, then `/plugin install tdd-red-handoff` — and run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task, `/update-kit` realigns the installed kit files when a new plugin version ships, `/update-models-roster` records model changes afterwards.
+Target projects install the kit as a Claude Code plugin — `/plugin marketplace add weAreCoine/tdd-red-handoff`, then `/plugin install tdd-red-handoff` — and run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task (`/show-profile` prints it, read-only), `/update-kit` realigns the installed kit files when a new plugin version ships, `/update-models-roster` records model changes afterwards.
 
 **Do not confuse this file with `.ai/templates/CLAUDE.template.md`.** That template *becomes* a target project's `CLAUDE.md`; this root file documents the kit repo itself and is never instantiated into a target (targets receive their files through `/init-architecture`, drawn from the plugin's payload).
 

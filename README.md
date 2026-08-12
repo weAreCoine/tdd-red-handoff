@@ -7,7 +7,7 @@ One kit, two **profiles**, chosen **per task, not once per project**:
 - **two-role** — an **Architect** (one top-tier role: designs, writes the failing tests, plans, reviews) plus the implementer. Fewest sessions, one handoff artifact per feature.
 - **pipeline** — a **Designer / Test-Writer / Verifier** trio on three model tiers plus the implementer, with a gate between the tests and the implementation. Tiered cost, two handoff artifacts per feature.
 
-This repo is a **Claude Code plugin** (and its own marketplace): it gives you the templates, the two process chapters, and five slash commands — `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/update-kit` realigns an installed project to a new kit version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
+This repo is a **Claude Code plugin** (and its own marketplace): it gives you the templates, the two process chapters, and six slash commands — `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/show-profile` prints the one currently active, `/update-kit` realigns an installed project to a new kit version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -157,6 +157,8 @@ When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter
 /switch-profile two-role      # or: pipeline
 ```
 
+Not sure which profile a project is on? `/show-profile` prints it — read-only: it checks the triad agrees and reports drift instead of guessing.
+
 The switch is mechanical, offline, and lossless: both chapters are already installed, so it rewrites exactly **two things** — line 1 of `CLAUDE.md` and the `profile` field of `.ai/kit.json` — and touches nothing else. One safeguard: when switching **to a profile with no role that reads a testplan** (today: two-role), any testplan still **in flight** (`Status` of `DRAFT`, `READY`, `RED`, or `REJECTED(n)`) makes the command stop and ask for explicit confirmation — that's specification work the destination profile would orphan. Switching *to* pipeline never blocks: it revives inert testplans. Switching happens between tasks, so the refusal should be rare.
 
 ### Migrating an older install
@@ -240,6 +242,7 @@ And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile
   marketplace.json                # the repo is its own plugin marketplace (ADR-0004)
 commands/                         # served by the plugin — never installed into targets
   init-architecture.md            # bootstrap; absorbs the legacy-kit migration as its appendix
+  show-profile.md                 # read-only — print the active profile from the triad
   switch-profile.md               # <two-role|pipeline> — rewrites the import line + kit.json
   update-kit.md                   # realign installed chapters/templates to the plugin version
   update-models-roster.md         # record a model change in the roster (the only concrete-name location)
