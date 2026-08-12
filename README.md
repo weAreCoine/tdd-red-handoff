@@ -49,6 +49,8 @@ Concrete model names live in exactly two places: this table, and the roster pref
 
 Tune the assignments per project, but keep the direction: top tier for spec decisions and escalations only.
 
+**When a tier is unavailable** — quota exhausted, access revoked, provider outage — the roster row stays as it is (it names the tier the project *wants*) and the outage is recorded beside the table, under `### Tier substitutions (temporary)`: which role, which model is actually running, since when, until what lifts it, why. That line is what changes the chapters' behaviour: a role whose session model doesn't match its row **stops**, unless a substitution for that role is recorded — then it proceeds and declares itself, and every artifact it produces records the substitution permanently (a row in the plan header, a note in the testplan Log). An agent never writes the line on its own: an unavailable tier is a fact only you can report, and only you can judge the work worth doing without it (`/update-models-roster`, ADR-0007).
+
 ---
 
 ## The files
@@ -129,6 +131,8 @@ The Verifier's model runs the gate and the review by default; the Designer's mod
 Two loops close the pipeline: a **gate bounce** (rejection sends the tests back to the Test-Writer with point-by-point notes), and a **review loop** (a logic issue found in review becomes new inventory rows and re-enters the pipeline as failing tests — never a hand-patched fix).
 
 The two-role profile has **no escalation ladder** — its Architect already runs on the strongest tier in the roster, so there is no model to escalate to.
+
+**With the Designer's tier substituted, the ladder has no top rung.** The triggers don't lapse, they become explicit calls: 1–3 fire as usual and run on the substitute, logged with the trigger number; 4 is the one to defer while the tier is out, since ADRs and `/init-architecture` propagate the furthest. And when the substitute happens to be the Verifier's own model, Design and gate collapse onto one model: the gate stops being verification against a reference *by a different model*, so an `APPROVED` reached that way carries less weight — the chapter says so, and the testplan Log records it.
 
 ---
 
@@ -215,7 +219,7 @@ The process chapters in `.ai/process/` are **not** templates: they carry no mark
 3. **One coverage floor, two files** — identical in `CLAUDE.md` and `PROJECT_ARCHITECTURE.md`, each on a fixed **Project floor** anchor line.
 4. **Fixed layer vocabulary** — Model / View / Controller / Service / Client, verbatim, everywhere.
 5. **Secrets boundary is absolute** — no provider keys or credentials in frontend source, env, or bundle.
-6. **Model names live only in the roster** — every other file refers to models by role ("the Designer's model"); `/update-models-roster` edits the roster and greps for leaked names.
+6. **Model names live only in the roster** — every other file refers to models by role ("the Designer's model"); `/update-models-roster` edits the roster and greps for leaked names. A temporarily unavailable tier is recorded as a **substitution line** beside the table, never by overwriting a `Current model` cell — the cell is the tier the project wants, the line is what's running instead.
 
 And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile`, the `CLAUDE.md` line-1 import, and the chapter filename must name the same profile. `/switch-profile` is the only procedure that changes it.
 
