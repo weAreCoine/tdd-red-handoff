@@ -175,8 +175,11 @@ invented.
 
 ### Phase 1 — Design interview (Designer, interactive)
 
-The operator-facing phase; `/fly` runs it. The interview is a **grill**: one question at a
-time, each with a recommended answer, the design tree walked branch by branch — a question the
+The operator-facing phase; `/fly` runs it. The interview is a **grill**, and the grill is not
+reimplemented ad hoc: it runs through the `grill-with-docs` skill (composing `grilling` and
+`domain-modeling`) — a **required dependency** of this profile; the launch command refuses to
+open a flight without it. The method it enforces: one question at a time, each with a
+recommended answer, the design tree walked branch by branch — a question the
 codebase can answer is explored, not asked. Along the way the project's language stays honest:
 fuzzy terms are sharpened against the project glossary, edge cases are probed with concrete
 scenarios, and decisions that are hard to reverse, surprising without context, and real

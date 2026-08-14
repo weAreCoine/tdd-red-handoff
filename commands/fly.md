@@ -32,7 +32,14 @@ chapter: `.ai/process/autopilot.md`.
    its creation is a human act. Working tree clean.
 6. **Tooling**: the two headless harness CLIs and `gh` are on PATH. Missing → STOP and say
    which.
-7. **Gitignore**: `.gitignore` covers `.ai/autopilot/` — add the line if missing (flight state
+7. **Interview skills** (required dependencies): the `grilling`, `grill-with-docs`, and
+   `domain-modeling` skills are available in this environment — phase 1 is defined in terms of
+   them, and there is no fallback interview. Missing → STOP and have the operator install them
+   first (public source):
+   ```bash
+   npx skills add mattpocock/skills --skill grilling --skill grill-with-docs --skill domain-modeling -g
+   ```
+8. **Gitignore**: `.gitignore` covers `.ai/autopilot/` — add the line if missing (flight state
    is operational, never committed).
 
 ## Phase B — The machine binding (`models.env`)
@@ -55,25 +62,16 @@ Each binding must agree with the roster row it implements — the roster stays t
 
 ## Phase C — The interview (phase 1 of the chapter)
 
-**The method first.** The interview is a grill, and the grill has a canonical implementation:
-if the operator's environment provides the `grill-with-docs` skill (or its parts, `grilling` +
-`domain-modeling`), **invoke it and run the interview through it** — do not re-improvise what
-it already does better. Only when no such skill is available, apply this equivalent contract
-yourself:
+**The method.** Invoke the **`grill-with-docs` skill** and drive the whole interview through
+it — it composes `grilling` (one question at a time, each with your recommended answer, the
+design tree walked branch by branch, a question the codebase can answer explored rather than
+asked) and `domain-modeling` (terms challenged against the project glossary and recorded the
+moment they crystallise, concrete edge-case scenarios, project ADRs only for decisions that
+are hard to reverse, surprising without context, and real trade-offs — distinct from the
+flight's design record below, which binds this flight while a project ADR outlives it). The
+skills are required dependencies, checked in Phase A; do not re-improvise what they do.
 
-- One question at a time, each with your recommended answer; wait for the operator before the
-  next. Walk the design tree branch by branch, resolving dependencies between decisions
-  one by one. A question the codebase can answer is explored, not asked.
-- Keep the project's language honest as you go: challenge terms that conflict with the
-  glossary (`CONTEXT.md`, where the project keeps one), sharpen fuzzy words to canonical
-  terms, stress-test relationships with concrete edge-case scenarios, cross-check claims
-  against the code — and record a resolved term the moment it crystallises, never in batch.
-- A decision that is hard to reverse, surprising without context, AND a real trade-off gets a
-  **project ADR** in the project's ADR location; anything short of all three does not. (This is
-  distinct from the flight's design record below: the record binds this flight, a project ADR
-  outlives it.)
-
-Whichever path ran, the interview must end with the Designer's phase-1 contract satisfied:
+The interview must end with the Designer's phase-1 contract satisfied:
 requirement fully understood, code inspected, affected units and exact signatures fixed, edge
 cases and blast radius mapped, **every** open decision resolved here — later phases inherit
 only what the artifacts say, and nobody attends them. Then, in order:

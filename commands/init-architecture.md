@@ -77,7 +77,9 @@ Present the choices that inspection **cannot** settle, and wait for the user. Do
    **pipeline** (Designer / Test-Writer / Verifier + Implementer: tiered cost, gate between
    tests and implementation) ·
    **autopilot** (nine phases flown unattended by the driver, operator at the two ends only;
-   its first flight also needs the production-role roster rows and `/fly`'s machine binding).
+   its first flight also needs the production-role roster rows, `/fly`'s machine binding, and
+   the interview skills `grilling` + `grill-with-docs` + `domain-modeling` — required
+   dependencies, checked by `/fly`).
    All three chapters are installed either way, and `/switch-profile`
    changes this per task later — this only sets the starting value.
 2. **Architecture model** — the `[[DECISION A/B/C]]` shared by CLAUDE.md and AGENTS.md:

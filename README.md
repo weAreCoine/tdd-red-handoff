@@ -166,7 +166,11 @@ The two-role profile has **no escalation ladder** — its Architect already runs
 
 ## Getting started
 
-**Prerequisites:** [Claude Code](https://www.anthropic.com/claude-code), and a project with a dependency manifest (`package.json`, `composer.json`, `pyproject.toml`, `go.mod`, …).
+**Prerequisites:** [Claude Code](https://www.anthropic.com/claude-code), and a project with a dependency manifest (`package.json`, `composer.json`, `pyproject.toml`, `go.mod`, …). The **autopilot** profile additionally requires three interview skills — `grilling`, `grill-with-docs`, `domain-modeling`, public source [mattpocock/skills](https://github.com/mattpocock/skills) — as hard dependencies: `/fly` refuses to open a flight without them.
+
+```bash
+npx skills add mattpocock/skills --skill grilling --skill grill-with-docs --skill domain-modeling -g
+```
 
 ```bash
 # 1. In Claude Code, add the kit's marketplace and install the plugin (once per machine)
@@ -199,7 +203,7 @@ Flying a feature under autopilot, once the profile is active and the production-
 /fly checkout-discounts
 ```
 
-The command runs the design interview — a grill: one question at a time with a recommended answer, glossary and project ADRs maintained as decisions crystallise (it invokes your `grill-with-docs` skill when you have one, and carries an equivalent inline contract when you don't) — then writes the design record, cuts the branch, launches the driver in the background, and goes dormant until the report — or the stop — comes back.
+The command runs the design interview — a grill: one question at a time with a recommended answer, glossary and project ADRs maintained as decisions crystallise. It runs through the `grill-with-docs` skill, a **required dependency** (see Prerequisites) — then writes the design record, cuts the branch, launches the driver in the background, and goes dormant until the report — or the stop — comes back.
 
 ### Migrating an older install
 

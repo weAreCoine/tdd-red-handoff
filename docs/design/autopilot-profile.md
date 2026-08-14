@@ -19,11 +19,12 @@ Implementation notes (decisions taken at build time, within this design):
 - Producer phases can take their backward edge (4 → 2, 8 → 6) by writing a `blocked` routed
   verdict — same file contract as the reviewers, counted against the global edge cap only,
   never against a gate's rejection cap.
-- "The grill" of phase 1 is canonical: `/fly` invokes the operator's `grill-with-docs` skill
-  when the environment provides it (a personal skill, not shipped by the kit), and carries an
-  equivalent inline contract — one question at a time with a recommended answer, glossary
-  discipline, project-ADR criteria — as the fallback. The chapter states the method
-  skill-agnostically.
+- "The grill" of phase 1 is the `grill-with-docs` skill, composing `grilling` +
+  `domain-modeling` (public source: `mattpocock/skills` on GitHub). Decided 2026-08-14: the
+  three skills are **required dependencies** of the profile — `/fly` checks them as a
+  preflight precondition and refuses to open a flight without them; there is no fallback
+  interview. The kit does not vendor them; they install user-level via the skills CLI
+  (`npx skills add`).
 
 Concrete model names are deliberately absent from this document (coupling #8: names live in
 the README defaults table and the roster template only). Roles are named by capability tier;
