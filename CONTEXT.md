@@ -15,7 +15,7 @@ _Avoid_: framework, boilerplate, scaffold
 A self-consistent set of process contracts — roles, templates and commands — that a target
 project runs on. Exactly one profile is active at any time, but the active profile is chosen
 per task, not once per project: a project switches between profiles as the work in front of
-it changes. The two values are `two-role` and `pipeline`.
+it changes. The three values are `two-role`, `pipeline` and `autopilot`.
 _Avoid_: variant, preset, mode, flavour
 
 **two-role**:
@@ -26,6 +26,12 @@ artifact per feature: the implementation plan.
 The profile with a Designer, a Test-Writer, a Verifier and an Implementer. Two handoff
 artifacts per feature: the test-case inventory and the implementation plan, separated by
 the Verifier's gate.
+
+**autopilot**:
+The profile that flies a feature unattended between two human touchpoints: a design
+interview at the start, a report and a draft PR at the end. Nine phases — a design side, a
+production side and four cross-family gates — chained by the driver. Three artifacts per
+feature: the design record, the test-case inventory and the implementation plan.
 
 **Process chapter**:
 The roles-and-phases text of one profile, shipped verbatim to `.ai/process/{profile}.md` in a
@@ -61,3 +67,35 @@ _Avoid_: lockfile, config, metadata
 The filled, project-specific files that exist in a target project: `CLAUDE.md`, `AGENTS.md`,
 `.ai/PROJECT_ARCHITECTURE.md`. Distinct from the templates they were filled from.
 _Avoid_: generated files, output
+
+**Flight**:
+One unattended run of the autopilot profile over a single feature: from the design interview
+to the draft PR, or to a stopped state. One flight, one feature, one PR; the process
+terminates at the final review — there is no continuous loop.
+_Avoid_: run, job, batch
+
+**Driver**:
+The deterministic script that chains autopilot phases. It launches headless sessions, reads
+routed verdicts, holds the bounce counters, and stops at the caps or on a failed preflight.
+It holds no intelligence: routing decisions belong to the reviewers.
+_Avoid_: orchestrator, director, agent
+
+**Routed verdict**:
+The machine-readable outcome an autopilot reviewer emits — verdict, route, notes. The
+reviewer decides where the flow goes next; the driver only executes that routing. An amended
+artifact always re-enters through its gate, never past it.
+_Avoid_: review result, gate output
+
+**Preflight**:
+The unforgeable tool-access probe every autopilot phase passes before real work: read a
+driver-written nonce file and open the output with its content. The nonce exists nowhere in
+the prompt, so producing it proves the tools work. Failure → bounded retries → the recorded
+substitution ladder → the operator.
+_Avoid_: health check, smoke test
+
+**Extended inertness**:
+Artifacts produced under a profile other than the active one are historical records: read,
+never rewritten, moved, deleted, or retrofitted. Generalizes the rule that testplans go
+inert under two-role. No design-record backfill, no retroactive gate stamps, no status
+promotion.
+_Avoid_: read-only mode, freezing
