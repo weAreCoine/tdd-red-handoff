@@ -19,6 +19,11 @@ Implementation notes (decisions taken at build time, within this design):
 - Producer phases can take their backward edge (4 → 2, 8 → 6) by writing a `blocked` routed
   verdict — same file contract as the reviewers, counted against the global edge cap only,
   never against a gate's rejection cap.
+- "The grill" of phase 1 is canonical: `/fly` invokes the operator's `grill-with-docs` skill
+  when the environment provides it (a personal skill, not shipped by the kit), and carries an
+  equivalent inline contract — one question at a time with a recommended answer, glossary
+  discipline, project-ADR criteria — as the fallback. The chapter states the method
+  skill-agnostically.
 
 Concrete model names are deliberately absent from this document (coupling #8: names live in
 the README defaults table and the roster template only). Roles are named by capability tier;

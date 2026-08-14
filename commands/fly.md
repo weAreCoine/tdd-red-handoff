@@ -55,10 +55,28 @@ Each binding must agree with the roster row it implements — the roster stays t
 
 ## Phase C — The interview (phase 1 of the chapter)
 
-Work the Designer's phase-1 contract with the operator: understand the requirement fully,
-inspect the code, fix affected units and exact signatures, map edge cases and blast radius,
-resolve **every** open decision here — later phases inherit only what the artifacts say, and
-nobody attends them. Then, in order:
+**The method first.** The interview is a grill, and the grill has a canonical implementation:
+if the operator's environment provides the `grill-with-docs` skill (or its parts, `grilling` +
+`domain-modeling`), **invoke it and run the interview through it** — do not re-improvise what
+it already does better. Only when no such skill is available, apply this equivalent contract
+yourself:
+
+- One question at a time, each with your recommended answer; wait for the operator before the
+  next. Walk the design tree branch by branch, resolving dependencies between decisions
+  one by one. A question the codebase can answer is explored, not asked.
+- Keep the project's language honest as you go: challenge terms that conflict with the
+  glossary (`CONTEXT.md`, where the project keeps one), sharpen fuzzy words to canonical
+  terms, stress-test relationships with concrete edge-case scenarios, cross-check claims
+  against the code — and record a resolved term the moment it crystallises, never in batch.
+- A decision that is hard to reverse, surprising without context, AND a real trade-off gets a
+  **project ADR** in the project's ADR location; anything short of all three does not. (This is
+  distinct from the flight's design record below: the record binds this flight, a project ADR
+  outlives it.)
+
+Whichever path ran, the interview must end with the Designer's phase-1 contract satisfied:
+requirement fully understood, code inspected, affected units and exact signatures fixed, edge
+cases and blast radius mapped, **every** open decision resolved here — later phases inherit
+only what the artifacts say, and nobody attends them. Then, in order:
 
 1. Update the base branch and cut `feature/{feature}` from it.
 2. Tracker: move (or create, with the operator) the feature's issue to *in progress*; keep its

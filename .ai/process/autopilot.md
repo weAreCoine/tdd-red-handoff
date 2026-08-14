@@ -175,12 +175,19 @@ invented.
 
 ### Phase 1 — Design interview (Designer, interactive)
 
-The operator-facing phase; `/fly` runs it. Understand the requirement fully; inspect existing
-code; fix the affected units and their exact signatures; map edge cases and failure modes;
-check blast radius on existing tests. Resolve every open decision **with the operator** — this
-is the only phase where a human answers questions; every later phase inherits only what the
-artifacts say. Produce `{feature}.adr.md`, open the tracker issue, cut the branch, commit,
-write `models.env`, launch the driver. Then go dormant.
+The operator-facing phase; `/fly` runs it. The interview is a **grill**: one question at a
+time, each with a recommended answer, the design tree walked branch by branch — a question the
+codebase can answer is explored, not asked. Along the way the project's language stays honest:
+fuzzy terms are sharpened against the project glossary, edge cases are probed with concrete
+scenarios, and decisions that are hard to reverse, surprising without context, and real
+trade-offs become project ADRs — distinct from this flight's design record.
+
+Understand the requirement fully; inspect existing code; fix the affected units and their
+exact signatures; map edge cases and failure modes; check blast radius on existing tests.
+Resolve every open decision **with the operator** — this is the only phase where a human
+answers questions; every later phase inherits only what the artifacts say. Produce
+`{feature}.adr.md`, open the tracker issue, cut the branch, commit, write `models.env`,
+launch the driver. Then go dormant.
 
 ### Phase 2 — Test inventory (TestPlan Designer)
 

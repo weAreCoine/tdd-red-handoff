@@ -199,7 +199,7 @@ Flying a feature under autopilot, once the profile is active and the production-
 /fly checkout-discounts
 ```
 
-The command runs the design interview (the only phase where a human answers questions), writes the design record, cuts the branch, launches the driver in the background, and goes dormant until the report — or the stop — comes back.
+The command runs the design interview — a grill: one question at a time with a recommended answer, glossary and project ADRs maintained as decisions crystallise (it invokes your `grill-with-docs` skill when you have one, and carries an equivalent inline contract when you don't) — then writes the design record, cuts the branch, launches the driver in the background, and goes dormant until the report — or the stop — comes back.
 
 ### Migrating an older install
 
