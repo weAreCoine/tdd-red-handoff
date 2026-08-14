@@ -140,8 +140,10 @@ Pinned from the manifest:
 > Referenced **by role** from `CLAUDE.md` and `AGENTS.md` — the only place concrete model names
 > live (Contract §6). The roster is the **union across profiles**; the active profile uses its
 > subset (two-role: Architect + Implementer · pipeline: Designer, Test-Writer, Verifier +
-> Implementer). Update with `/update-models-roster`: new names come from the user, never
-> from an agent's memory.
+> Implementer · autopilot: Designer, its four reviewer roles — all resolving to the Verifier
+> row — and its production roles on the production rows recorded via `/update-models-roster`
+> before the first flight). Update with `/update-models-roster`: new names come from the user,
+> never from an agent's memory.
 
 | Role | Capability profile (what to pick) | Current model |
 |------|-----------------------------------|---------------|

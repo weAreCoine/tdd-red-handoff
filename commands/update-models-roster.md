@@ -36,6 +36,11 @@ and proves that invariant still holds.
      `### Tier substitutions (temporary)`, and **leave the table untouched**. The cell states the
      tier the project wants; overwriting it would erase that and hide, from every later reader,
      that the work ran below tier. Lifting a substitution = deleting its line.
+   - **Substitution ladder (autopilot)** — the ordered fallback models a *production* tier may
+     drop to when it fails its preflight mid-flight → one line per tier in the same
+     `### Tier substitutions (temporary)` block, marked as a ladder. The roster records it;
+     `/fly` mirrors it into the flight's machine binding. Retiring a rung (a previous-generation
+     model shut down) is an edit to this line.
    If the user's phrasing is ambiguous ("let's use the other model for now"), ask which one it is
    before editing anything.
 1. Show the current roster table, and the substitution block if it has lines.

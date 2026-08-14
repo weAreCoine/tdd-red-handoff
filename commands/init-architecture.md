@@ -39,8 +39,8 @@ project facts, and are never edited — here or later.
 
 - Check the plugin's payload: `${CLAUDE_PLUGIN_ROOT}/.ai/templates/` has `CLAUDE.template.md`,
   `AGENTS.template.md`, `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`,
-  `test_plan_template.md`, and `${CLAUDE_PLUGIN_ROOT}/.ai/process/` has **both** `two-role.md`
-  and `pipeline.md`. If any is missing the installation is broken: STOP and tell the user to
+  `test_plan_template.md`, and `${CLAUDE_PLUGIN_ROOT}/.ai/process/` has **all three** chapters —
+  `two-role.md`, `pipeline.md`, `autopilot.md`. If any is missing the installation is broken: STOP and tell the user to
   reinstall the plugin.
 - Route on the live docs (`CLAUDE.md`, `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`):
   - **None exist** → fresh init: continue with Phase 1.
@@ -75,7 +75,10 @@ Present the choices that inspection **cannot** settle, and wait for the user. Do
 1. **Profile** — which process contract the first task runs on:
    **two-role** (Architect + Implementer: one top-tier design role, fewest sessions) ·
    **pipeline** (Designer / Test-Writer / Verifier + Implementer: tiered cost, gate between
-   tests and implementation). Both chapters are installed either way, and `/switch-profile`
+   tests and implementation) ·
+   **autopilot** (nine phases flown unattended by the driver, operator at the two ends only;
+   its first flight also needs the production-role roster rows and `/fly`'s machine binding).
+   All three chapters are installed either way, and `/switch-profile`
    changes this per task later — this only sets the starting value.
 2. **Architecture model** — the `[[DECISION A/B/C]]` shared by CLAUDE.md and AGENTS.md:
    **A** flat MVCS · **B** domain-partitioned (MVCS within each domain) · **C** other.
@@ -98,7 +101,7 @@ own files):
 mkdir -p .ai/plans .ai/process .ai/templates
 # process chapters + per-feature templates: installed into the project (committed),
 # so switching profile and writing plans work offline, without the plugin
-cp "${CLAUDE_PLUGIN_ROOT}"/.ai/process/two-role.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/pipeline.md .ai/process/
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/process/two-role.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/pipeline.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/autopilot.md .ai/process/
 cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/plan_template.md "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/test_plan_template.md .ai/templates/
 # doc templates: instantiated, not installed — their filled copies BECOME the live docs
 cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/CLAUDE.template.md               ./CLAUDE.md
@@ -109,10 +112,10 @@ cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/PROJECT_ARCHITECTURE.template.md ./.ai/
 Then wire the profile:
 
 1. In `CLAUDE.md`, replace the FILL comment at the top so that **line 1** is the import for the
-   Phase-2 profile: `@.ai/process/two-role.md` or `@.ai/process/pipeline.md`. Nothing above it.
+   Phase-2 profile: `@.ai/process/<two-role|pipeline|autopilot>.md`. Nothing above it.
 2. Write `.ai/kit.json`:
    ```json
-   { "profile": "<two-role|pipeline>", "kitVersion": "<version>" }
+   { "profile": "<two-role|pipeline|autopilot>", "kitVersion": "<version>" }
    ```
    `<version>` is read from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — the
    authoritative kit version (ADR-0005). Never invent the number; `/update-kit` restamps it on
@@ -121,6 +124,9 @@ Then wire the profile:
    `init-architecture.md`, `migrate-architecture.md`, `switch-profile.md`, `update-kit.md`,
    `update-models-roster.md`, `verify-kit.md` — delete them: the plugin serves the commands
    now, and stale copies would shadow it. Touch nothing else in `.claude/`.
+4. Ensure `.gitignore` covers `.ai/autopilot/` — flight state under the autopilot profile is
+   operational and never committed; adding the line now keeps a later `/switch-profile
+   autopilot` clean.
 
 `plan_template.md` and `test_plan_template.md` are the only templates **installed** into the
 project's `.ai/templates/` — the roles reference them per feature at runtime. The three doc

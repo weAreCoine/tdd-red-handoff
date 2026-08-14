@@ -1,6 +1,6 @@
 <!-- FILL: replace this whole comment with the profile import — it must be LINE 1 of the
      finished CLAUDE.md, nothing above it:
-       @.ai/process/two-role.md     or     @.ai/process/pipeline.md
+       @.ai/process/two-role.md   or   @.ai/process/pipeline.md   or   @.ai/process/autopilot.md
      The import must agree with the "profile" field of .ai/kit.json and with an existing
      chapter file in .ai/process/ — verify-kit checks that triad. /switch-profile is the only
      procedure that changes it afterwards. -->

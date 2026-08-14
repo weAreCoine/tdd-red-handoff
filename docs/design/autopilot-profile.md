@@ -1,7 +1,24 @@
 # Autopilot profile — design
 
-Designed 2026-08-14 in a grill session; not yet implemented. Companion ADR:
+Designed 2026-08-14 in a grill session; implemented the same day (kit v1.4.0). Companion ADR:
 `docs/adr/0008-autopilot-a-third-profile-that-flies-unattended.md`.
+
+Implementation notes (decisions taken at build time, within this design):
+
+- The phase-1 launch command is **`/fly <feature>`** (`commands/fly.md`); the driver is
+  `bin/autopilot-driver.sh`, plugin-served like `verify-kit.sh`, POSIX sh, no dependencies
+  beyond git and the two headless harness CLIs.
+- The driver never reads the roster: the machine binding (CLI model identifiers per tier,
+  ladder included) lives in the target's gitignored `.ai/autopilot/models.env`, written by
+  `/fly` from the roster with the operator confirming. The roster stays the human record.
+- The four reviewer roles resolve to the roster's **Verifier** row; the production roles get
+  their own rows, recorded per project via `/update-models-roster` (the kit ships no default).
+- `/switch-profile`'s refusal rule now also covers **autopilot as destination** (a flight never
+  adopts a half-done testplan) and refuses outright to leave autopilot while a driver reports a
+  `RUNNING` flight.
+- Producer phases can take their backward edge (4 → 2, 8 → 6) by writing a `blocked` routed
+  verdict — same file contract as the reviewers, counted against the global edge cap only,
+  never against a gate's rejection cap.
 
 Concrete model names are deliberately absent from this document (coupling #8: names live in
 the README defaults table and the roster template only). Roles are named by capability tier;
@@ -133,4 +150,4 @@ body, never created.
 - Retirement of the previous-generation flagship (substitution ladder rung): a
   `/update-models-roster` run when it happens.
 - Subscription usage caps on long overnight flights: observe during the first real flights.
-- Name of the phase-1 launch command: open.
+- ~~Name of the phase-1 launch command~~: resolved — `/fly`.

@@ -23,7 +23,7 @@
 #                    same sin the Kit forbids every role.
 #
 # -p <plugin-root> (target mode only; kit mode ignores it): also check install
-# integrity against the plugin payload — the four installed kit files byte-identical
+# integrity against the plugin payload — the five installed kit files byte-identical
 # to the plugin's copies, kit.json's kitVersion equal to plugin.json's version
 # (ADR-0005). Without -p those checks are NOT CHECKED: the script cannot locate
 # the plugin on its own; the plugin commands pass "${CLAUDE_PLUGIN_ROOT}".
@@ -85,9 +85,10 @@ format
 format:check
 coverage'
 
-# The four files the plugin installs verbatim into a target — /update-kit's exact scope.
+# The five files the plugin installs verbatim into a target — /update-kit's exact scope.
 KIT_FILES='.ai/process/two-role.md
 .ai/process/pipeline.md
+.ai/process/autopilot.md
 .ai/templates/plan_template.md
 .ai/templates/test_plan_template.md'
 
@@ -187,7 +188,9 @@ if [ "$MODE" = kit ]; then
 
   # chapters — process chapters ship verbatim: no fill markers, ever. The pipeline
   # chapter also keeps its detection string and never uses the two-role role word
-  # ('Architect' is legitimate only in two-role.md).
+  # ('Architect' is legitimate only in two-role.md). The autopilot chapter keeps its
+  # own role vocabulary: 'Test Writer' (space — its role), never 'Test-Writer'
+  # (hyphen — pipeline's), and never bare 'architect' either.
   if [ -d .ai/process ] && ls .ai/process/*.md >/dev/null 2>&1; then
     problems=''
     ch=$(grep -nE 'FILL:|\[\[DECISION' .ai/process/*.md || true)
@@ -197,6 +200,14 @@ if [ "$MODE" = kit ]; then
         || problems="$problems$NL  .ai/process/pipeline.md: 'Test-Writer' not found"
       arch=$(grep -nwi 'architect' .ai/process/pipeline.md || true)
       [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the pipeline chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+    fi
+    if [ -f .ai/process/autopilot.md ]; then
+      grep -q 'Test Writer' .ai/process/autopilot.md \
+        || problems="$problems$NL  .ai/process/autopilot.md: 'Test Writer' not found"
+      tw=$(grep -n 'Test-Writer' .ai/process/autopilot.md || true)
+      [ -n "$tw" ] && problems="$problems$NL  pipeline's 'Test-Writer' in the autopilot chapter (its role is 'Test Writer'):$NL$(printf '%s' "$tw" | sed 's/^/    /')"
+      arch=$(grep -nwi 'architect' .ai/process/autopilot.md || true)
+      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the autopilot chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
     fi
     if [ -z "$problems" ]; then
       pass chapters "process chapters carry no markers (they ship verbatim)"
@@ -251,11 +262,11 @@ if [ "$MODE" = kit ]; then
   else
     problems="$problems$NL  .claude-plugin/marketplace.json missing"
   fi
-  for c in init-architecture show-profile switch-profile update-kit update-models-roster verify-kit; do
+  for c in fly init-architecture show-profile switch-profile update-kit update-models-roster verify-kit; do
     [ -f "commands/$c.md" ] || problems="$problems$NL  commands/$c.md missing (plugin commands live in commands/, not .claude/commands/)"
   done
   if [ -z "$problems" ]; then
-    pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 6 commands in commands/"
+    pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 7 commands in commands/"
   else
     fail plugin-manifest "plugin packaging broken:"
     printf '%s\n' "$problems" | grep -v '^$' | detail
@@ -372,6 +383,16 @@ else # target
       printf '%s\n' "$ph" | detail
     fi
 
+    # flight-state — autopilot installs only: .ai/autopilot/ (verdicts, counters, nonces,
+    # logs) is operational state, never an interface between roles — it must be gitignored.
+    if [ "$profile" = autopilot ]; then
+      if [ -f .gitignore ] && grep -q '^\.ai/autopilot' .gitignore; then
+        pass flight-state ".gitignore covers .ai/autopilot/ (flight state stays out of the repo)"
+      else
+        fail flight-state ".gitignore does not cover .ai/autopilot/ — flight state would be committed (/fly adds the line)"
+      fi
+    fi
+
     # install-integrity (with -p only) — the install measured against the plugin payload.
     # Two drift kinds, told apart by the version stamp: differing versions = the plugin
     # moved on (benign, /update-kit realigns); same version but differing bytes = a
@@ -407,14 +428,14 @@ else # target
       done
       IFS=$OLDIFS
       if [ -z "$problems" ]; then
-        pass install-files "all 4 installed kit files byte-identical to the plugin's copies"
+        pass install-files "all 5 installed kit files byte-identical to the plugin's copies"
       else
         fail install-files "installed kit files diverge from the plugin payload:"
         printf '%s\n' "$problems" | grep -v '^$' | detail
       fi
       NOTE_PLUGIN=''
     else
-      NOTE_PLUGIN='  - Install integrity (4 kit files byte-identical to the plugin, kitVersion vs
+      NOTE_PLUGIN='  - Install integrity (5 kit files byte-identical to the plugin, kitVersion vs
     plugin version): no plugin root given — rerun with -p "$CLAUDE_PLUGIN_ROOT".'
     fi
     NOTE_PROFILE=''
