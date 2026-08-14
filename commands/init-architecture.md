@@ -160,8 +160,11 @@ Inherited rules worth restating (this is where agents slip):
 - **Runtime Wiring is the highest-risk section**: name the construct actually used AND the tempting-wrong
   default to avoid. Paste the real adapter/handler signature once it exists.
 - **Keep the PROJECT_ARCHITECTURE "Contract" section in place** — it's a live guard, not scaffolding.
-- **§ Model Roster keeps its prefilled kit defaults** — the union of both profiles' roles; don't
+- **§ Model Roster keeps its prefilled kit defaults** — the union of the profiles' roles; don't
   blank them into `TODO`s and don't ask; changing them later is `/update-models-roster`'s job.
+  The autopilot **production rows** ship deliberately absent: when the Phase-2 profile is
+  autopilot, tell the user the first flight needs a `/update-models-roster` run (its
+  union-growth operation, names from the user) — do not invent the rows here.
 
 ## Phase 5 — Self-check
 

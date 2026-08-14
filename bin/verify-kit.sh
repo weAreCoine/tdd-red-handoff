@@ -193,6 +193,9 @@ if [ "$MODE" = kit ]; then
   # (hyphen — pipeline's), and never bare 'architect' either.
   if [ -d .ai/process ] && ls .ai/process/*.md >/dev/null 2>&1; then
     problems=''
+    for chf in two-role.md pipeline.md autopilot.md; do
+      [ -f ".ai/process/$chf" ] || problems="$problems$NL  .ai/process/$chf missing — the kit ships three chapters"
+    done
     ch=$(grep -nE 'FILL:|\[\[DECISION' .ai/process/*.md || true)
     [ -n "$ch" ] && problems="$problems$NL  fill markers in chapters:$NL$(printf '%s' "$ch" | sed 's/^/    /')"
     if [ -f .ai/process/pipeline.md ]; then
@@ -264,6 +267,11 @@ if [ "$MODE" = kit ]; then
   fi
   for c in fly init-architecture show-profile switch-profile update-kit update-models-roster verify-kit; do
     [ -f "commands/$c.md" ] || problems="$problems$NL  commands/$c.md missing (plugin commands live in commands/, not .claude/commands/)"
+  done
+  for b in bin/verify-kit.sh bin/autopilot-driver.sh; do
+    if [ ! -f "$b" ]; then problems="$problems$NL  $b missing (the plugin ships both executables)"
+    elif [ ! -x "$b" ]; then problems="$problems$NL  $b not executable"
+    fi
   done
   if [ -z "$problems" ]; then
     pass plugin-manifest "plugin '$pname' v$pver, self-marketplace, 7 commands in commands/"
@@ -386,7 +394,7 @@ else # target
     # flight-state — autopilot installs only: .ai/autopilot/ (verdicts, counters, nonces,
     # logs) is operational state, never an interface between roles — it must be gitignored.
     if [ "$profile" = autopilot ]; then
-      if [ -f .gitignore ] && grep -q '^\.ai/autopilot' .gitignore; then
+      if [ -f .gitignore ] && grep -Eq '^\.ai/autopilot/?[[:space:]]*$' .gitignore; then
         pass flight-state ".gitignore covers .ai/autopilot/ (flight state stays out of the repo)"
       else
         fail flight-state ".gitignore does not cover .ai/autopilot/ — flight state would be committed (/fly adds the line)"

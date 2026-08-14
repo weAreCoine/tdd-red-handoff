@@ -36,9 +36,14 @@ status, explain that the destination profile has no role that continues it, and 
 explicit confirmation before proceeding. Switching happens **between tasks**; this refusal
 should be rare, and overriding it is the user's call, never yours.
 
-**Flights.** When leaving `autopilot`: if any `.ai/autopilot/*/status` file reads `RUNNING`,
-**STOP** — a driver is (or believes it is) mid-flight; stop or finish the flight first. This
-one is not overridable by confirmation: two contracts steering one repo is never sane.
+**Flights.** When leaving `autopilot`, read every `.ai/autopilot/*/status` file:
+
+- Any `RUNNING` → **STOP** — a driver is (or believes it is) mid-flight; stop or finish the
+  flight first. Not overridable by confirmation: two contracts steering one repo is never sane.
+- Any `STOPPED` or `PUSHED` → an interrupted flight whose artifacts are mid-lifecycle. STOP,
+  name the feature and its last state, and ask for explicit confirmation: switching abandons
+  the flight (its artifacts go inert — the other chapters refuse to adopt them), and the way
+  back is relaunching the driver under autopilot, not continuing under another profile.
 
 `APPROVED` testplans (plan already issued) and plain `{feature}.md` plans don't block: plans are
 readable under every profile, and testplans simply go **inert** — never rewritten, moved, or

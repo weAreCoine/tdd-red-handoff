@@ -57,9 +57,13 @@ changes with `/update-models-roster`. The autopilot subset of the union roster:
 
 A role with **no row** in the roster is a stop: the flight cannot bind that phase to a model —
 run `/update-models-roster` first. The machine binding (the CLI model identifiers the driver
-passes to the headless harnesses) lives in `.ai/autopilot/models.env`, written by `/fly` from
-the roster with the operator confirming; the roster stays the human record, the env file the
-operational one.
+passes to the headless harnesses, plus the permission policy) lives in
+`.ai/autopilot/models.env`, written by `/fly` from the roster with the operator confirming;
+the roster stays the human record, the env file the operational one — parsed as data, never
+executed. The default policy is guarded: producers in the codex workspace-write sandbox with
+automatic approvals, reviewers under the project's Claude Code sandbox with auto-accepted
+edits. A bypass is never a silent default: it exists only as the operator's recorded,
+per-project choice.
 
 At the start of phase 1, the Designer checks the session model against its row exactly as the
 other chapters do: mismatch with **no substitution recorded** in the roster → say so and stop;
@@ -116,8 +120,8 @@ harness-agnostic:
 4. **2 retries** with the same model, then the recorded substitution ladder (each rung passes
    its own preflight), then the flight stops for the operator.
 5. Backstops for mid-session degradation: the end of every phase requires the expected artifact
-   on disk (non-trivial), a commit (HEAD advanced), and a clean tree; the driver scans the
-   phase's output log for tool-failure bursts.
+   on disk (non-trivial, carrying the canonical status/gate row), a commit (HEAD advanced,
+   message carrying the tracker reference when one exists), and a clean tree.
 
 ## Artifacts & status lifecycle
 
@@ -154,14 +158,20 @@ name — the flight never adopts or overwrites them.
 
 ## Git / tracker ribbon
 
-- The base branch is the project's integration branch (`develop` where the convention applies).
-  Phase 1 updates it and branches `feature/{feature}` from it — **fail fast** with a clear
-  message if the base branch is missing: its creation is a human act.
+- The base branch is `develop` — fixed by decision, not configurable. Phase 1 updates it and
+  branches `feature/{feature}` from it — **fail fast** with a clear message if `develop` is
+  missing: its creation is a human act.
 - Every file-producing phase commits atomically, message carrying the semantic prefix and the
   tracker reference from the design record.
-- A successful phase 9 pushes and opens a **draft PR against the base branch** with a compiled
-  body (summary from design record and plan, suite outcome, tracker reference), moves the issue
-  to review, and cross-links both. A stopped or rejected flight pushes **nothing**.
+- After phase 9 approves, the driver pushes and opens a **draft PR against `develop`** with a
+  compiled body (summary from the plan, flight counters, final review notes, tracker
+  reference). The Final Reviewer moves the issue to review when it has tracker tools;
+  otherwise its notes propose the move, and cross-linking issue ↔ PR is the operator's step,
+  named in the report.
+- Terminal states are three, and each one is honest: **DONE** (pushed, draft PR open) ·
+  **PUSHED** (pushed, but the PR could not be opened — the report hands the operator the saved
+  body and the remaining steps) · **STOPPED** (caps, preflight, or git failure — nothing was
+  pushed).
 - Promotion from draft, merge, and issue closure are human acts, outside the flight.
 - Problems *discovered* during the flight are **proposed** in the report with ready-to-paste
   title and body — never created as issues by a phase.

@@ -41,6 +41,15 @@ and proves that invariant still holds.
      `### Tier substitutions (temporary)` block, marked as a ladder. The roster records it;
      `/fly` mirrors it into the flight's machine binding. Retiring a rung (a previous-generation
      model shut down) is an edit to this line.
+   - **Union growth (autopilot bootstrap)** — the roster predates the autopilot profile and
+     lacks its production rows, so `/fly` refuses to fly → **add** the three rows below the
+     existing ones, models from the user. This is the one case where this command adds rows
+     rather than editing cells; the roles and capability texts are fixed by the chapter, only
+     the `Current model` cells come from the operator:
+
+     | TestPlan Designer · Handoff Planner | flagship production tier — writes the test inventory and the implementation plan across the family line | {user} |
+     | Test Writer | cost-efficient production tier — transcribes the gated inventory into RED tests | {user} |
+     | Implementer (autopilot) | mid production tier — minimum code to green, headless | {user} |
    If the user's phrasing is ambiguous ("let's use the other model for now"), ask which one it is
    before editing anything.
 1. Show the current roster table, and the substitution block if it has lines.

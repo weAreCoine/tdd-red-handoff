@@ -14,8 +14,18 @@ Implementation notes (decisions taken at build time, within this design):
 - The four reviewer roles resolve to the roster's **Verifier** row; the production roles get
   their own rows, recorded per project via `/update-models-roster` (the kit ships no default).
 - `/switch-profile`'s refusal rule now also covers **autopilot as destination** (a flight never
-  adopts a half-done testplan) and refuses outright to leave autopilot while a driver reports a
-  `RUNNING` flight.
+  adopts a half-done testplan), refuses outright to leave autopilot while a driver reports a
+  `RUNNING` flight, and asks explicit confirmation for `STOPPED`/`PUSHED` ones (switching
+  abandons them; their artifacts go inert under the other chapters).
+- Provenance beats status everywhere: the sibling `{feature}.adr.md` is the autopilot
+  signature all three chapters and AGENTS use to keep flight artifacts inert — in particular,
+  an autopilot plan without its `Gate: APPROVED` row is never implementable under any profile.
+- Post-review hardening (decisions in ADR-0008 § Amendments): fixed `develop`, guarded
+  permission policy with bypass-by-record, config files parsed as data (strict grammars, never
+  sourced), persisted dispatch counter + verdict pre-delete (no stale-verdict reuse), verdict
+  enum + verdict/route coherence enforced per gate, canonical `> **Status:**` /
+  `- **Gate:** APPROVED` rows checked exactly, tracker reference required in phase commit
+  messages, third terminal state `PUSHED`, event-stream scan dropped (watch item).
 - Producer phases can take their backward edge (4 → 2, 8 → 6) by writing a `blocked` routed
   verdict — same file contract as the reviewers, counted against the global edge cap only,
   never against a gate's rejection cap.
@@ -156,4 +166,8 @@ body, never created.
 - Retirement of the previous-generation flagship (substitution ladder rung): a
   `/update-models-roster` run when it happens.
 - Subscription usage caps on long overnight flights: observe during the first real flights.
+- Pinning of the interview skills (`mattpocock/skills` unpinned — drift risk on future
+  installs; ADR-0008 § Amendments).
+- The driver's event-stream scan, dropped in text mode: revisit with `--json` /
+  `--output-schema` when it pays.
 - ~~Name of the phase-1 launch command~~: resolved — `/fly`.

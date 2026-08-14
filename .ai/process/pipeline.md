@@ -65,6 +65,11 @@ The testplan `Status` drives the pipeline:
 `DRAFT` → `READY` (design complete) → `RED` (tests written and failing) → `APPROVED` (gate
 passed, implementation plan issued) or `REJECTED(n)` (back to Phase 2 with notes).
 
+**Provenance before status.** A feature with a sibling `{feature}.adr.md` (a design record) is
+an **autopilot flight**, whatever its testplan says: its artifacts are inert here — never
+adopted into the pipeline, never rewritten, never advanced. Infer your phase from a testplan's
+`Status` only when the feature has no design record.
+
 ## Pipeline (MANDATORY)
 
 Every feature follows this exact sequence. No exceptions.

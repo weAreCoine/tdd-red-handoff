@@ -70,3 +70,33 @@ successful flight ends with a push, a draft PR against `develop`, and the tracke
 moved to review with PR and issue cross-linked. Promotion from draft, merge, and issue
 closure stay human; a personal post-merge command outside the kit cleans up. A stopped or
 rejected flight pushes nothing: local commits and a report of the exact blocking point.
+
+## Amendments (2026-08-14 — post-implementation review)
+
+An independent implementation review (flagship production tier, 2026-08-14) surfaced
+decisions this ADR had left implicit. Resolved with the operator:
+
+- **The interview skills are hard dependencies.** Phase 1's grill runs through the
+  `grill-with-docs` skill (composing `grilling` + `domain-modeling`; public source
+  `mattpocock/skills` on GitHub), installed user-level via the skills CLI. `/fly` checks them
+  as a preflight precondition; there is no fallback interview. The source is not pinned —
+  accepted risk, tracked as a watch item while the flow is single-operator.
+- **Permission policy: guarded by default, bypass by record.** Producers run in the codex
+  workspace-write sandbox with automatic approvals; reviewers run under the project's Claude
+  Code sandbox with auto-accepted edits. A full bypass exists only as an explicit per-project
+  line in the machine binding, written by the operator with the cost stated — never as a
+  default, never inferred from launching a flight.
+- **The base branch stays `develop`, fixed.** The implementation briefly generalized it to a
+  configurable value; reverted — a variable able to point a flight at a production branch buys
+  nothing this kit wants.
+- **Preflight scope: headless phases.** Phase 1 is human-attended; a nonce probe there proves
+  nothing the operator cannot see directly. "Every phase" in this ADR reads as "every headless
+  phase" (2–9).
+- **A third terminal state.** DONE/STOPPED cannot truthfully describe a flight whose push
+  succeeded but whose PR creation failed: **PUSHED** names it, and the report hands the
+  operator the compiled PR body and the remaining publication steps.
+- **The event-stream scan is dropped for now.** In text-mode harness output it either misses
+  (JSON markers absent) or false-positives (test output contains error strings). The backstops
+  that hold are: preflight nonce, canonical status/gate rows on the artifact, HEAD advanced
+  with the tracker reference in the message, clean tree. Revisit with `--json` /
+  `--output-schema` — watch item.
