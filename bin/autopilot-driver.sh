@@ -27,7 +27,9 @@
 # Entry preconditions (ADR-0008: re-entry always passes the gate): before ANY
 # phase launch — first phase, normal flow, or an -s relaunch — the artifacts
 # on disk must justify entering it. The only path into phase 8 is a plan
-# carrying the approved Gate row that only phase 7 writes.
+# carrying the approved Gate row that only phase 7 writes; the only path into
+# phase 9 additionally carries the Implementation GREEN row on the testplan
+# Log that only phase 8 appends — implementation cannot be skipped by re-entry.
 #
 # State lives under .ai/autopilot/<feature>/ (gitignored). Terminal statuses:
 #   DONE     pushed and draft PR opened                      exit 0
@@ -267,6 +269,12 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
   [ "$(grep -cE '^- \*\*Gate:\*\*' "$1")" -eq 1 ] || return 1
   grep -qE "$GATE_ROW" "$1"
 }
+# Phase 8's durable completion signal: without it, "ready for 9" and "ready
+# for 8" are observably identical and a direct -s 9 would skip implementation.
+# Append-only (a re-run after a phase-9 reject adds another row), hence at
+# least one, not exactly one.
+IMPL_ROW='^- \*\*Implementation:\*\* GREEN — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$'
+impl_green() { [ -f "$1" ] && grep -qE "$IMPL_ROW" "$1"; }
 
 # --- phase metadata ----------------------------------------------------------
 phase_role() {
@@ -324,7 +332,8 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
          || REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row" ;;
     9) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
          && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
-         || REASON="phase 9 judges against plan + design record: need $ADR + testplan APPROVED + gated RED plan" ;;
+         && impl_green "$TESTPLAN" \
+         || REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED carrying the Implementation GREEN row + gated RED plan" ;;
   esac
   [ -z "$REASON" ]
 }
@@ -344,7 +353,7 @@ artifact_ok() { # $1 = phase, $2 = route
          && ! has_gate_row "$PLAN" ;;   # the Plan Reviewer stamps the Gate, never the planner
     7) if [ "$2" = proceed ]; then gate_row_ok "$PLAN"
        else status_line_is "$PLAN" RED && ! has_gate_row "$PLAN"; fi ;;
-    8) : ;;
+    8) [ "$2" = plan ] || impl_green "$TESTPLAN" ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
        else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
   esac
@@ -361,7 +370,7 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. Commit when green. If the plan cannot be implemented as written, do NOT improvise: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
     9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }

@@ -85,6 +85,7 @@ case $PHASE in
     ;;
   8)
     echo "impl stub $(stamp)" >> src.txt
+    printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
     commit "feat: $FEATURE implementation (TEST-1)"
     ;;
   9)

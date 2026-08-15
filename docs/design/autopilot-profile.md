@@ -121,6 +121,7 @@ When the previous-generation model is retired, update the ladder via `/update-mo
 | Gate 5 outcome | `APPROVED`/`REJECTED(n)` | Exactly pipeline's gate. |
 | Gate 7 outcome | `Gate: APPROVED` on the plan | Uniform reading across profiles: "the approval that authorizes implementation". Who stamped it is in the Log. |
 | Gate 9 outcome | `DONE` on the plan | The plan's own two-value status, already stamped by the review phase in both existing chapters. |
+| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). |
 | Flight state | `.ai/autopilot/{feature}/`, gitignored | Verdict JSONs, counters, preflight nonces, event logs, `report.md`. Operational, not an interface between roles: the durable record is in the artifacts. |
 
 **Backward compatibility** is by addition: a plan without a `Gate` row comes from a profile

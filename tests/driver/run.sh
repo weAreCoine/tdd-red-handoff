@@ -87,6 +87,9 @@ seed_plan() { # $1 = 'gated' | 'ungated' (Status RED either way)
   return 0
 }
 seed_commit() { git add -A && git commit -qm 'feat: demo seeded artifacts (TEST-1)'; }
+seed_impl_green() { # the durable phase-8 completion row on the testplan Log
+  printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> .ai/plans/demo.testplan.md
+}
 seed_gated_artifacts() { # $1 = 'gated' | 'ungated'
   seed_testplan APPROVED
   seed_plan "$1"
@@ -599,6 +602,18 @@ scrub_env; make_flight m9i
 (cd "$G" && seed_gated_artifacts gated && drop_adr)
 run_driver -s 9
 chk 'matrix -s 9 without design record: refused' log_has 'phase 9 entry precondition failed'
+
+scrub_env; make_flight m9v
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'matrix -s 9 (gated + Implementation GREEN row): DONE' st DONE
+chk 'matrix -s 9 ran only the final review' test "$(grep -c -- 'ok — route: proceed' "$S/driver.log")" -eq 1
+
+scrub_env; make_flight m9i2
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 9
+chk 'matrix -s 9 freshly gated, no implementation: refused' log_has 'phase 9 entry precondition failed'
+chk 'matrix -s 9 nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 # ------------------------------------------------------------------- result --
 scrub_env

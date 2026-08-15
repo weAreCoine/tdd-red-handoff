@@ -34,7 +34,7 @@ cannot approve their own output.
 | 5 | Test gate | **Test Reviewer** | strong review tier | headless | routed verdict → `APPROVED` / `REJECTED(n)` |
 | 6 | Implementation plan | **Handoff Planner** | flagship production tier | headless, agentic | `{feature}.md`, commit |
 | 7 | Plan gate | **Plan Reviewer** | strong review tier | headless | `Gate: APPROVED` on the plan |
-| 8 | Implementation | **Implementer** | mid production tier | headless, agentic | minimum code until GREEN, commit |
+| 8 | Implementation | **Implementer** | mid production tier | headless, agentic | minimum code until GREEN + GREEN row on the testplan Log, commit |
 | 9 | Final review | **Final Reviewer** | strong review tier | headless | `DONE` on the plan, push, draft PR, report |
 
 Backward edges: 3 rejects → 2 · 4 blocked → 2 · 5 minor → 4, structural → 2 · 7 rejects → 6 ·
@@ -140,8 +140,9 @@ stamped by the Plan Reviewer at phase 7, so the Handoff Planner issues the plan 
 and only phase 7 adds it. The plan's own status closes `RED` → `DONE` at phase 9.
 
 **The testplan `§ Log` is the flight's audit trail**: every phase appends its entry there —
-verdicts with notes, rejection counts, ladder substitutions, blocked flags. Verdict JSONs,
-counters, nonces and logs live in `.ai/autopilot/{feature}/`, which is **gitignored**:
+verdicts with notes, rejection counts, ladder substitutions, blocked flags, the
+Implementer's GREEN row. Verdict JSONs, counters, nonces and logs live in
+`.ai/autopilot/{feature}/`, which is **gitignored**:
 operational state, not an interface between roles — the durable record is in the artifacts.
 
 **Design record content** (phase 1, from the interview): the decisions that bind the flight —
@@ -251,9 +252,11 @@ route `plan`.
 ### Phase 8 — Implementation (Implementer)
 
 Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the gated tests
-green, run `test` and `typecheck`, commit. Tests are untouchable. A plan that cannot be
-implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log — never
-an improvisation.
+green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
+canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
+to the testplan Log and commit it with the code — the durable proof of implementation that
+entering phase 9 requires. A plan that cannot be implemented as written is a `blocked` verdict
+(route `plan`) with the reason in the Log — never an improvisation, and never the GREEN row.
 
 ### Phase 9 — Final review (Final Reviewer)
 

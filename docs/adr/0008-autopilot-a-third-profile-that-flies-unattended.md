@@ -124,3 +124,22 @@ are resolved as follows:
   Gate row). This closes the review's relaunch-bypass finding while leaving the operator free
   to re-enter *upstream* of the stop when the amendment is deeper; a persisted single resume
   point would forbid exactly that legitimate case.
+
+## Amendments (2026-08-15 — third implementation review)
+
+A third independent review confirmed the previous rounds' fixes and found the remaining
+defects to be driver implementation faults (bounded counter grammar, closed verdict grammar,
+branch integrity, complete entry matrix — fixed in place, covered by the behavior suite).
+One finding touched this ADR's contract:
+
+- **Phase 8 leaves a durable completion signal.** Phases 8 and 9 shared the same observable
+  entry state (testplan APPROVED + gated RED plan), because implementation produces only
+  code — so a direct `-s 9` relaunch could skip implementation entirely and publish. Now the
+  Implementer, once green, appends the canonical row
+  `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)` to the
+  testplan Log and commits it with the code; entering phase 9 requires that row. This is an
+  artifact-level entry precondition, consistent with the gate-soundness amendment above —
+  not a persisted resume whitelist: the flight state stays operational and gitignored. Known
+  residual, accepted: the row is append-only, so after a phase-9 reject that rewrites the
+  plan, a row from the previous attempt still satisfies a *direct* `-s 9`; the normal routed
+  path re-runs phase 8 regardless.
