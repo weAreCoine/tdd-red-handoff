@@ -45,8 +45,9 @@ have silently degraded the two flagship-tier phases. The countermeasure is delib
 model-specific. Before real work, every phase must read a driver-written nonce file and open
 its output with the nonce — unforgeable proof that its tools actually work, since the nonce
 exists nowhere in the prompt. Failure → 2 retries, then the recorded substitution ladder
-(ADR-0007 mechanics), then the operator. An end-of-phase artifact check and an event-log
-scan back it up against mid-session degradation. Nothing in the mechanism names a model, so
+(ADR-0007 mechanics), then the operator. An end-of-phase artifact check backs it up
+against mid-session degradation (the event-log scan originally designed alongside it was
+dropped at build time — unreliable in text-mode harness output; see Amendments 2026-08-15). Nothing in the mechanism names a model, so
 a future roster changes nothing here — and when the provider bug is fixed, the preflight
 simply starts passing, with no baked-in workaround to notice and remove.
 

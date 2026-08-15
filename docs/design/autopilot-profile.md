@@ -136,8 +136,11 @@ Forge deploys). The flight: phase 1 updates `develop` and branches `feature/{fea
 it (**fail-fast** with a clear message if `develop` is missing — its creation is a human
 act); every file-producing phase ends committed and clean, every commit carrying the tracker reference in the
 message; a successful phase 9 pushes and opens a **draft PR against `develop`** with a
-compiled body (summary from design record and plan, suite outcome, tracker reference),
-moves the issue to review, cross-links both. Promotion from draft, merge (typically
+compiled body (summary from the plan, flight counters, final-review notes, tracker
+reference — the suite evidence lives in the phase-9 commits and the testplan Log, not
+in the PR body). The Final Reviewer moves the issue to review when it has tracker
+tools; otherwise the DONE report names the move and the issue ↔ PR cross-link as the
+operator's residual step (ADR-0008 § Amendments 2026-08-15). Promotion from draft, merge (typically
 deleting the remote branch), and closure are human. Post-merge, the operator runs the
 personal `/mark-done` command (outside the kit: deletes the local branch, realigns
 `develop`, closes the issue, runs the personal checkpoint skill). Issues for problems
@@ -149,7 +152,8 @@ body, never created.
 - `.ai/process/autopilot.md` — new chapter: no markers, exact-string role names, phase
   numbers confined here, re-entry-through-the-gate rule, extended inertness, preflight
   preamble contract, roster/substitution reading as in the other chapters.
-- `bin/` — the driver (dispatch, counters, preflight, event-log scan, git/tracker ribbon).
+- `bin/` — the driver (dispatch, counters, preflight, git/tracker ribbon; the event-log
+  scan was dropped at build time — ADR-0008 § Amendments).
 - `commands/` — `init-architecture`, `switch-profile`, `show-profile`, `verify-kit` learn
   the third triad value; new command to open phase 1 (name to be chosen).
 - `.ai/templates/` — `plan_template.md` and `AGENTS.template.md`: "pipeline-only" wording

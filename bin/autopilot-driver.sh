@@ -81,16 +81,19 @@ cfg_validate() { # $1 = file, $2 = whitespace-separated known keys
 cfg_get() { # $1 = file, $2 = key
   sed -n "s/^$2='\([^']*\)'[[:space:]]*\$/\1/p" "$1" | head -n 1
 }
-is_model_list() { # every space-separated token is a plausible CLI model id
-  [ -n "$1" ] || return 1
-  for t in $1; do
-    printf '%s' "$t" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:/-]*$' || return 1
-  done
+is_model_id() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:/-]*$'; }
+is_model_list() { # ids separated by single ASCII spaces — the exact grammar the
+                  # dispatch loop consumes; a tab or a double space is NOT a list
+  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:/-]*( [A-Za-z0-9][A-Za-z0-9._:/-]*)*$'
 }
 is_args() { # an option string: non-empty, starts with '-', allowed charset only
   printf '%s' "$1" | grep -Eq '^-[A-Za-z0-9 ._=:-]*$'
 }
-is_count() { printf '%s' "$1" | grep -Eq '^[1-9][0-9]*$'; }
+# Bounded decimal grammar: shell arithmetic has a finite range, and an
+# out-of-range digit string WRAPS instead of failing — "all digits" is not
+# "a safe integer". COUNTER_MAX and the {0,8} bound must move together.
+COUNTER_MAX=999999999
+is_count() { printf '%s' "$1" | grep -Eq '^[1-9][0-9]{0,8}$'; }
 
 S=.ai/autopilot/$FEATURE
 MODELS_ENV=.ai/autopilot/models.env
@@ -118,7 +121,7 @@ LADDER_REVIEW=$(cfg_get "$MODELS_ENV" AP_LADDER_REVIEW)
 for v in "AP_MODEL_REVIEW=$MODEL_REVIEW" "AP_MODEL_FLAGSHIP=$MODEL_FLAGSHIP" \
          "AP_MODEL_COSTEFF=$MODEL_COSTEFF" "AP_MODEL_MID=$MODEL_MID"; do
   val=${v#*=}
-  is_model_list "$val" && [ "${val##* }" = "$val" ] \
+  is_model_id "$val" \
     || die "models.env: ${v%%=*} missing or not a single valid model id ('$val')"
 done
 for v in "AP_LADDER_FLAGSHIP=$LADDER_FLAGSHIP" "AP_LADDER_COSTEFF=$LADDER_COSTEFF" \
@@ -179,13 +182,18 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "$S/driver
 # Counters run in the PARENT shell only: stop_flight must be able to terminate
 # the driver, and an exit inside $(...) would only kill the subshell — the
 # flight would keep flying on a state it just declared corrupt.
-read_int() { # $1 = state file -> RI; corrupt state is fatal, never silently reset
+read_int() { # $1 = state file -> RI; corrupt or out-of-range state is fatal,
+             # never silently reset — the bounded grammar keeps every persisted
+             # value inside the arithmetic range (an oversized digit string
+             # would wrap to a small, reusable id instead of failing)
   if [ -f "$S/$1" ]; then RI=$(cat "$S/$1"); else RI=0; fi
-  case $RI in ''|*[!0-9]*) stop_flight "corrupt state: $S/$1 ('$RI')" ;; esac
+  case $RI in 0) ;; *) is_count "$RI" || stop_flight "corrupt state: $S/$1 ('$RI')" ;; esac
 }
-bump() { # $1 = state file -> BUMPED
+bump() { # $1 = state file -> BUMPED; the increment must grow and stay in range
   read_int "$1"
   BUMPED=$((RI + 1))
+  { [ "$BUMPED" -gt "$RI" ] && [ "$BUMPED" -le "$COUNTER_MAX" ]; } \
+    || stop_flight "counter out of range: $S/$1 ('$RI')"
   printf '%s\n' "$BUMPED" > "$S/$1" || stop_flight "cannot write $S/$1"
 }
 show_int() { # report-context reader: tolerant, never recurses into stop_flight
@@ -223,27 +231,41 @@ cleanup() { # EXIT: release the lock; an abnormal exit must not leave RUNNING be
 trap cleanup EXIT
 trap 'stop_flight "interrupted"' INT TERM HUP
 
-# --- verdict files: strict single-line JSON, then field extraction -----------
-verdict_ok() { # the prescribed compact shape, three known keys, one line, nothing else
+# --- verdict files: one closed flat-object grammar, matched and extracted as
+# a single full-string ERE — never two independent regexes, so text inside
+# "notes" can never shadow the routing fields. Notes forbid raw quotes,
+# backslashes, and control bytes; extra keys, duplicate keys, or a second
+# line (newline-terminated or not) fail the match.
+NL='
+'
+VJ_RX='^\{[[:space:]]*"verdict"[[:space:]]*:[[:space:]]*"(approve|reject|blocked)"[[:space:]]*,[[:space:]]*"route"[[:space:]]*:[[:space:]]*"([a-z]+)"[[:space:]]*,[[:space:]]*"notes"[[:space:]]*:[[:space:]]*"([^"[:cntrl:]\\]*)"[[:space:]]*\}[[:space:]]*$'
+verdict_parse() { # $1 = file -> V_VERDICT, V_ROUTE, V_NOTES; 1 on any deviation
+  V_VERDICT=''; V_ROUTE=''; V_NOTES=''
   [ -f "$1" ] || return 1
   [ "$(wc -l < "$1")" -le 1 ] || return 1
-  grep -qE '^\{[[:space:]]*"verdict"[[:space:]]*:[[:space:]]*"(approve|reject|blocked)"[[:space:]]*,[[:space:]]*"route"[[:space:]]*:[[:space:]]*"[a-z]+"[[:space:]]*,[[:space:]]*"notes"[[:space:]]*:[[:space:]]*".*"[[:space:]]*\}[[:space:]]*$' "$1"
+  VC=$(cat "$1")
+  case $VC in *"$NL"*) return 1 ;; esac
+  printf '%s' "$VC" | grep -Eq "$VJ_RX" || return 1
+  V_VERDICT=$(printf '%s' "$VC" | sed -E "s/$VJ_RX/\1/")
+  V_ROUTE=$(printf '%s' "$VC" | sed -E "s/$VJ_RX/\2/")
+  V_NOTES=$(printf '%s' "$VC" | sed -E "s/$VJ_RX/\3/")
 }
-json_field() { sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -n 1; }
 
 # --- artifact status parsing (anchored to the canonical rows) ----------------
-status_line_is() { # $1 = file, $2 = ERE for the value — closed by a boundary,
-                   # so READY never matches READYNESS
+status_line_is() { # $1 = file, $2 = ERE for the value — exactly one Status row,
+                   # its value closed by end-of-line or a " — " annotation (the
+                   # date on DONE), so APPROVED never matches "APPROVED junk"
+                   # and READY never matches READYNESS
   [ -f "$1" ] || return 1
   [ "$(grep -cE '^(> )?\*\*Status:\*\*' "$1")" -eq 1 ] || return 1
-  grep -qE "^(> )?\*\*Status:\*\*[[:space:]]*($2)([[:space:]]|\$)" "$1"
+  grep -qE "^(> )?\*\*Status:\*\*[[:space:]]+($2)( — .*)?\$" "$1"
 }
 has_gate_row() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\*' "$1"; }
-has_approved_gate() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\* APPROVED' "$1"; }
-gate_row_ok() { # exactly one Gate row, carrying the canonical approved grammar
+GATE_ROW='^- \*\*Gate:\*\* APPROVED — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), all gate checks passed \(CLAUDE\.md, gate phase\)$'
+gate_row_ok() { # exactly one Gate row, and it is the full canonical approved row
   [ -f "$1" ] || return 1
   [ "$(grep -cE '^- \*\*Gate:\*\*' "$1")" -eq 1 ] || return 1
-  grep -qE '^- \*\*Gate:\*\* APPROVED — [0-9]{4}-[0-9]{2}-[0-9]{2}' "$1"
+  grep -qE "$GATE_ROW" "$1"
 }
 
 # --- phase metadata ----------------------------------------------------------
@@ -275,26 +297,34 @@ reject_routes() { # backward routes a REVIEWER may take
 producer_route() { case $1 in 4) echo testplan ;; 8) echo plan ;; *) echo '' ;; esac; }
 route_phase() { case $1 in testplan) echo 2 ;; tests) echo 4 ;; plan) echo 6 ;; implementation) echo 8 ;; esac; }
 
-# Entry precondition: the artifacts on disk must justify launching this phase.
-# Checked before EVERY launch — first phase, routed re-entry, or -s relaunch —
-# so no path (including the recovery interface) reaches a consumer ungated.
+# Entry precondition: the artifacts on disk must justify launching this phase —
+# EVERY input its contract consumes (existence, non-triviality, canonical
+# lifecycle state), not just one status token. Checked before EVERY launch —
+# first phase, routed re-entry, or -s relaunch — so no path (including the
+# recovery interface) reaches a consumer ungated or with a missing input.
+nontrivial() { [ -f "$1" ] && [ "$(wc -c < "$1")" -gt "$2" ]; }
+adr_ok() { nontrivial "$ADR" 200; }
 entry_ok() { # $1 = phase -> 0/1; REASON set on failure
   REASON=''
   case $1 in
-    2) [ -f "$ADR" ] && [ "$(wc -c < "$ADR")" -gt 200 ] \
-         || REASON="design record $ADR missing or trivial" ;;
-    3) status_line_is "$TESTPLAN" DRAFT \
-         || REASON="testplan is not in DRAFT (phase 3 judges a DRAFT inventory)" ;;
-    4) status_line_is "$TESTPLAN" 'READY|REJECTED\([0-9]+\)' \
-         || REASON="testplan is not READY (or bounced REJECTED(n))" ;;
-    5) status_line_is "$TESTPLAN" RED \
-         || REASON="testplan is not RED" ;;
-    6) status_line_is "$TESTPLAN" APPROVED \
-         || REASON="testplan is not APPROVED" ;;
-    7) status_line_is "$PLAN" RED && ! has_approved_gate "$PLAN" \
-         || REASON="plan missing, not RED, or already gated (phase 7 stamps the Gate itself)" ;;
-    8|9) status_line_is "$TESTPLAN" APPROVED && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
+    2) adr_ok || REASON="design record $ADR missing or trivial" ;;
+    3) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" DRAFT \
+         || REASON="phase 3 judges a DRAFT inventory against the design record: need $ADR + a non-trivial DRAFT testplan" ;;
+    4) nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" 'READY|REJECTED\([0-9]+\)' \
+         || REASON="testplan missing, trivial, or not READY (or bounced REJECTED(n))" ;;
+    5) nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" RED \
+         || REASON="testplan missing, trivial, or not RED" ;;
+    6) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+         || REASON="phase 6 plans from the gated testplan and the design record: need $ADR + testplan APPROVED" ;;
+    7) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+         && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && ! has_gate_row "$PLAN" \
+         || REASON="phase 7 judges an ungated RED plan against the gated testplan and $ADR (phase 7 stamps the Gate itself)" ;;
+    8) nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+         && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
          || REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row" ;;
+    9) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+         && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
+         || REASON="phase 9 judges against plan + design record: need $ADR + testplan APPROVED + gated RED plan" ;;
   esac
   [ -z "$REASON" ]
 }
@@ -313,10 +343,10 @@ artifact_ok() { # $1 = phase, $2 = route
     6) [ -f "$PLAN" ] && [ "$(wc -c < "$PLAN")" -gt 400 ] && status_line_is "$PLAN" RED \
          && ! has_gate_row "$PLAN" ;;   # the Plan Reviewer stamps the Gate, never the planner
     7) if [ "$2" = proceed ]; then gate_row_ok "$PLAN"
-       else ! has_approved_gate "$PLAN"; fi ;;
+       else status_line_is "$PLAN" RED && ! has_gate_row "$PLAN"; fi ;;
     8) : ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
-       else ! status_line_is "$PLAN" DONE; fi ;;
+       else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
   esac
 }
 
@@ -379,6 +409,14 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       fi
       rc=$?
 
+      # Branch integrity before anything else: if the phase left the feature
+      # branch or rewrote its history, the reset-based retry recovery and the
+      # commit checks below would run against the wrong ref — stop, honestly.
+      [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/$FEATURE" ] \
+        || stop_flight "phase $p left branch feature/$FEATURE (HEAD is now '$(git rev-parse --abbrev-ref HEAD 2>/dev/null)') — repository state needs operator inspection"
+      git merge-base --is-ancestor "$snap" HEAD 2>/dev/null \
+        || stop_flight "phase $p rewrote history: snapshot $snap is no longer an ancestor of HEAD — operator inspection required"
+
       fail=''
       grep -qF "PREFLIGHT: $nonce" "$logf" || fail='preflight line missing or wrong'
       [ -z "$fail" ] && grep -q 'PREFLIGHT: FAIL' "$logf" && fail='phase reported PREFLIGHT: FAIL'
@@ -387,8 +425,8 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       route=proceed
       if [ -z "$fail" ]; then
         if [ -f "$verdict" ]; then
-          if verdict_ok "$verdict"; then
-            v=$(json_field "$verdict" verdict); route=$(json_field "$verdict" route)
+          if verdict_parse "$verdict"; then
+            v=$V_VERDICT; route=$V_ROUTE
             if [ "$is_reviewer" -eq 1 ]; then
               case $v in
                 approve) [ "$route" = proceed ] || fail="verdict approve with route '$route'" ;;
@@ -472,9 +510,14 @@ done
 
 # --- the ribbon: push + draft PR ---------------------------------------------
 log "phase 9 approved — pushing and opening the draft PR"
+# The published ref must be the reviewed HEAD: re-verify the branch at
+# publication time, not only at flight start.
+[ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/$FEATURE" ] \
+  || stop_flight "not on feature/$FEATURE at publication time — refusing to push"
 git push -u origin "feature/$FEATURE" >> "$S/driver.log" 2>&1 \
   || stop_flight "git push failed — nothing was published; branch intact locally (see driver.log)"
 
+verdict_parse "$LAST_VERDICT" || :   # -> V_NOTES ('' if the file went away)
 {
   printf 'Autopilot flight — feature `%s`%s\n\n' "$FEATURE" "${ISSUE_REF:+ (${ISSUE_REF})}"
   printf '## Summary (from the plan)\n\n'
@@ -483,7 +526,7 @@ git push -u origin "feature/$FEATURE" >> "$S/driver.log" 2>&1 \
   printf 'Design record: `%s` · testplan: `%s` · plan: `%s`\n' "$ADR" "$TESTPLAN" "$PLAN"
   printf 'Backward edges: %s/%s · gate rejections: 3:%s 5:%s 7:%s 9:%s\n\n' \
     "$(show_int edges)" "$MAX_EDGES" "$(show_int rej.3)" "$(show_int rej.5)" "$(show_int rej.7)" "$(show_int rej.9)"
-  printf 'Final review notes: %s\n\n' "$(json_field "$LAST_VERDICT" notes)"
+  printf 'Final review notes: %s\n\n' "$V_NOTES"
   printf 'Opened by the autopilot driver. Promotion from draft, merge, and issue closure are human acts.\n'
 } > "$S/pr-body.md"
 

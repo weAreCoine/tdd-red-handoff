@@ -70,20 +70,29 @@ st() { [ "$(cat "$S/status" 2>/dev/null)" = "$1" ]; }
 log_has() { grep -qF -- "$1" "$S/driver.log"; }
 out_has() { grep -qF -- "$1" "$OUT"; }
 
-# Pre-baked artifacts for the -s relaunch scenarios (cwd = flight repo).
-seed_gated_artifacts() { # $1 = 'gated' | 'ungated'
+# Pre-baked artifacts for the -s relaunch / entry-matrix scenarios (cwd = flight repo).
+seed_testplan() { # $1 = Status value to seed
   {
-    printf '# Test plan — demo\n\n> **Status:** APPROVED\n\n## Inventory\n\n'
+    printf '# Test plan — demo\n\n> **Status:** %s\n\n## Inventory\n\n' "$1"
     i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
     printf '\n## Log\n\n- seeded for the relaunch scenario\n'
   } > .ai/plans/demo.testplan.md
+}
+seed_plan() { # $1 = 'gated' | 'ungated' (Status RED either way)
   {
     printf '# Plan — demo\n\n> **Status:** RED\n\n## 1. Goal\n\nTurn the red tests green.\n\n## 3. Constraints\n\n'
     i=0; while [ $i -lt 12 ]; do echo "- constraint $i derived from the testplan"; i=$((i+1)); done
   } > .ai/plans/demo.md
   [ "$1" = gated ] && printf -- '- **Gate:** APPROVED — 2026-08-15, all gate checks passed (CLAUDE.md, gate phase)\n' >> .ai/plans/demo.md
-  git add -A && git commit -qm 'feat: demo seeded artifacts (TEST-1)'
+  return 0
 }
+seed_commit() { git add -A && git commit -qm 'feat: demo seeded artifacts (TEST-1)'; }
+seed_gated_artifacts() { # $1 = 'gated' | 'ungated'
+  seed_testplan APPROVED
+  seed_plan "$1"
+  seed_commit
+}
+drop_adr() { git rm -q .ai/plans/demo.adr.md && git commit -qm 'chore: drop the design record (TEST-1)'; }
 
 # ---------------------------------------------------------------- scenarios --
 
@@ -95,6 +104,10 @@ chk 'happy: status DONE' st DONE
 chk 'happy: PR url in the report' grep -qF 'https://example.invalid/pr/1' "$S/report.md"
 chk 'happy: branch on origin' git -C "$ORIGIN" show-ref --verify -q refs/heads/feature/demo
 chk 'happy: 8 phases proceed' test "$(grep -c -- 'ok — route: proceed' "$S/driver.log")" -eq 8
+chk 'happy: gh called with the exact publication argv' \
+  grep -qx -- '--base' "$S/../gh-args"
+chk 'happy: gh targeted develop <- feature/demo' \
+  sh -c 'grep -qx develop "$1" && grep -qx feature/demo "$1"' _ "$S/../gh-args"
 
 echo '# bounce: gate 5 rejects once with REJECTED(1), then approves'
 scrub_env; make_flight bounce
@@ -302,6 +315,290 @@ chk 'ghfail: exit 1' test "$RC" -eq 1
 chk 'ghfail: status PUSHED' st PUSHED
 chk 'ghfail: branch on origin' git -C "$ORIGIN" show-ref --verify -q refs/heads/feature/demo
 chk 'ghfail: PR body saved' test -s "$S/pr-body.md"
+
+echo '# counter overflow: an all-digit value outside the arithmetic range fails closed (R3-B1)'
+scrub_env; make_flight overflowd
+printf '18446744073709551616\n' > "$S/dispatch"
+run_driver
+chk 'overflowd: exit 1' test "$RC" -eq 1
+chk 'overflowd: status STOPPED' st STOPPED
+chk 'overflowd: corrupt state named' grep -qF 'corrupt state' "$S/report.md"
+chknot 'overflowd: no phase ever passed' log_has 'ok — route'
+chk 'overflowd: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# counter grammar: leading zeros are not canonical (R3-B1)'
+scrub_env; make_flight zerod
+printf '007\n' > "$S/dispatch"
+run_driver
+chk 'zerod: status STOPPED' st STOPPED
+chk 'zerod: corrupt state named' grep -qF 'corrupt state' "$S/report.md"
+
+echo '# counter ceiling: the maximum reads back fine, maximum+1 stops before wrapping (R3-B1)'
+scrub_env; make_flight ceiling
+printf '999999998\n' > "$S/dispatch"
+run_driver
+chk 'ceiling: maximum accepted for the first dispatch' log_has 'dispatch 999999999'
+chk 'ceiling: maximum+1 stops the flight' log_has 'counter out of range'
+chk 'ceiling: status STOPPED' st STOPPED
+chk 'ceiling: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# oversized caps and non-space model separators are refused at startup (R3-m1)'
+scrub_env; make_flight bigcap
+AP_MAX_TRIES=99999999999; export AP_MAX_TRIES
+run_driver
+chk 'bigcap: exit 2' test "$RC" -eq 2
+chk 'bigcap: integer rule named' out_has 'must be a positive integer'
+
+scrub_env; make_flight tabmodel
+(cd "$G" && {
+  printf "AP_MODEL_REVIEW='rev-1'\n"
+  printf "AP_MODEL_FLAGSHIP='flag-1\tflag-2'\n"
+  printf "AP_MODEL_COSTEFF='cost-1'\n"
+  printf "AP_MODEL_MID='mid-1'\n"
+} > .ai/autopilot/models.env)
+run_driver
+chk 'tabmodel: exit 2' test "$RC" -eq 2
+chk 'tabmodel: single-id rule named' out_has 'not a single valid model id'
+
+scrub_env; make_flight tabladder
+(cd "$G" && write_models_env "$(printf "AP_LADDER_REVIEW='rev-2\trev-3'")")
+run_driver
+chk 'tabladder: exit 2' test "$RC" -eq 2
+chk 'tabladder: list rule named' out_has 'not a valid model list'
+
+echo '# verdict shadowing: routing text inside notes must not control the route (R3-B2)'
+scrub_env; make_flight shadow
+SC=$BASE/sc-shadow; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '%s' '{"verdict":"reject","route":"testplan","notes":"shadow "verdict":"approve" and "route":"proceed""}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'shadow: status STOPPED' st STOPPED
+chk 'shadow: grammar fired' log_has 'not the prescribed single-line JSON'
+chknot 'shadow: phase 3 never passed' log_has 'phase 3 ok'
+chk 'shadow: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# verdict with a second, unterminated line: rejected (R3-B2)'
+scrub_env; make_flight tailjson
+SC=$BASE/sc-tailjson; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ok"}\ngarbage' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'tailjson: status STOPPED' st STOPPED
+chk 'tailjson: grammar fired' log_has 'not the prescribed single-line JSON'
+
+echo '# branch escape: a phase that leaves feature/demo stops the flight (R3-B4)'
+scrub_env; make_flight sidebranch
+SC=$BASE/sc-sidebranch; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ok"}' > "$VERDICT"
+git checkout -qb rewritten
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'sidebranch: exit 1' test "$RC" -eq 1
+chk 'sidebranch: status STOPPED' st STOPPED
+chk 'sidebranch: branch escape named' log_has 'left branch feature/demo'
+chk 'sidebranch: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# history rewrite: the snapshot must stay an ancestor of HEAD (R3-B4)'
+scrub_env; make_flight rewound
+SC=$BASE/sc-rewound; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+git reset --hard -q HEAD~1
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'rewound: status STOPPED' st STOPPED
+chk 'rewound: rewrite named' log_has 'no longer an ancestor of HEAD'
+chk 'rewound: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# phase 7 reject must leave the plan RED with NO Gate row (R3-M1)'
+scrub_env; make_flight rej7
+SC=$BASE/sc-rej7; mkdir -p "$SC"
+cat > "$SC/phase7" <<'EOF'
+printf -- '- **Gate:** REJECTED — stale row\n' >> "$PLAN"
+printf -- '- stub: plan gate reject with a stray row\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo plan gate reject (TEST-1)'
+printf '{"verdict":"reject","route":"plan","notes":"faults"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'rej7: status STOPPED' st STOPPED
+chk 'rej7: artifact backstop fired' log_has 'expected artifact/status'
+chknot 'rej7: phase 7 never passed' log_has 'phase 7 ok'
+
+echo '# phase 9 reject must leave the plan RED and gated (R3-M1)'
+scrub_env; make_flight rej9
+SC=$BASE/sc-rej9; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DRAFT/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- stub: final review reject that mangles the plan status\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo final review reject (TEST-1)'
+printf '{"verdict":"reject","route":"implementation","notes":"faults"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'rej9: status STOPPED' st STOPPED
+chk 'rej9: artifact backstop fired' log_has 'expected artifact/status'
+chknot 'rej9: phase 9 never passed' log_has 'phase 9 ok'
+
+echo '# phase 9 legitimate reject: plan stays RED+gated, routes to implementation, then DONE'
+scrub_env; make_flight rej9ok
+SC=$BASE/sc-rej9ok; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+if [ -f "$FLIGHT_DIR/p9-bounced" ]; then
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+  printf -- '- stub: final review passed on retry\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+else
+  touch "$FLIGHT_DIR/p9-bounced"
+  printf -- '- stub: final review reject, code fixes needed\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review reject (TEST-1)'
+  printf '{"verdict":"reject","route":"implementation","notes":"one edge unhandled"}' > "$VERDICT"
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'rej9ok: status DONE' st DONE
+chk 'rej9ok: routed 9 -> 8' log_has 'phase 9 -> 8 (route: implementation)'
+chk 'rej9ok: one rejection on gate 9' test "$(cat "$S/rej.9")" -eq 1
+
+echo '# producer block: phase 4 blocked routes back to the testplan, then DONE'
+scrub_env; make_flight blocked4
+SC=$BASE/sc-blocked4; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+if [ -f "$FLIGHT_DIR/p4-blocked" ]; then
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** RED/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+  printf -- '- stub: tests transcribed, RED verified\n' >> "$TESTPLAN"
+  echo 'test stub retry' >> tests.txt
+  git add -A && git commit -qm 'test: demo red tests (TEST-1)'
+else
+  touch "$FLIGHT_DIR/p4-blocked"
+  printf -- '- stub: inventory gap, expected value missing\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo transcription blocked (TEST-1)'
+  printf '{"verdict":"blocked","route":"testplan","notes":"case 7 has no expected value"}' > "$VERDICT"
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'blocked4: status DONE' st DONE
+chk 'blocked4: routed 4 -> 2' log_has 'phase 4 -> 2 (route: testplan)'
+chk 'blocked4: one backward edge' test "$(cat "$S/edges")" -eq 1
+
+echo '# status value grammar: APPROVED followed by junk is not APPROVED (M1)'
+scrub_env; make_flight junkstatus
+SC=$BASE/sc-junkstatus; mkdir -p "$SC"
+cat > "$SC/phase5" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** APPROVED trailing-junk/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+printf -- '- stub: sloppy status row\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo test gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ok"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'junkstatus: status STOPPED' st STOPPED
+chk 'junkstatus: artifact backstop fired' log_has 'expected artifact/status'
+
+echo '# gate row grammar: a date-shaped prefix with junk is not the canonical row (M1)'
+scrub_env; make_flight junkgate
+SC=$BASE/sc-junkgate; mkdir -p "$SC"
+cat > "$SC/phase7" <<'EOF'
+printf -- '- **Gate:** APPROVED — 9999-99-99 trailing junk\n' >> "$PLAN"
+printf -- '- stub: sloppy gate row\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo plan gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ok"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'junkgate: status STOPPED' st STOPPED
+chk 'junkgate: artifact backstop fired' log_has 'expected artifact/status'
+
+echo '# entry matrix: every -s phase demands its full input set (R3-B3)'
+scrub_env; make_flight m3v
+(cd "$G" && seed_testplan DRAFT && seed_commit)
+run_driver -s 3
+chk 'matrix -s 3 (DRAFT testplan): DONE' st DONE
+
+scrub_env; make_flight m4v
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 4
+chk 'matrix -s 4 (READY testplan): DONE' st DONE
+
+scrub_env; make_flight m5v
+(cd "$G" && seed_testplan RED && seed_commit)
+run_driver -s 5
+chk 'matrix -s 5 (RED testplan): DONE' st DONE
+
+scrub_env; make_flight m6v
+(cd "$G" && seed_testplan APPROVED && seed_commit)
+run_driver -s 6
+chk 'matrix -s 6 (APPROVED testplan): DONE' st DONE
+
+scrub_env; make_flight m7v
+(cd "$G" && seed_testplan APPROVED && seed_plan ungated && seed_commit)
+run_driver -s 7
+chk 'matrix -s 7 (APPROVED + ungated RED plan): DONE' st DONE
+
+scrub_env; make_flight m2i
+(cd "$G" && drop_adr)
+run_driver
+chk 'matrix -s 2 without design record: refused' log_has 'phase 2 entry precondition failed'
+chk 'matrix -s 2 nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight m3i
+run_driver -s 3
+chk 'matrix -s 3 without testplan: refused' log_has 'phase 3 entry precondition failed'
+
+scrub_env; make_flight m3i2
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 3
+chk 'matrix -s 3 on READY: refused' log_has 'phase 3 entry precondition failed'
+
+scrub_env; make_flight m4i
+(cd "$G" && seed_testplan DRAFT && seed_commit)
+run_driver -s 4
+chk 'matrix -s 4 on DRAFT: refused' log_has 'phase 4 entry precondition failed'
+
+scrub_env; make_flight m5i
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 5
+chk 'matrix -s 5 on READY: refused' log_has 'phase 5 entry precondition failed'
+
+scrub_env; make_flight m6i
+(cd "$G" && seed_testplan RED && seed_commit)
+run_driver -s 6
+chk 'matrix -s 6 on RED: refused' log_has 'phase 6 entry precondition failed'
+
+scrub_env; make_flight m6i2
+(cd "$G" && seed_testplan APPROVED && seed_commit && drop_adr)
+run_driver -s 6
+chk 'matrix -s 6 without design record: refused' log_has 'phase 6 entry precondition failed'
+
+scrub_env; make_flight m7i
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 7
+chk 'matrix -s 7 on a gated plan: refused' log_has 'phase 7 entry precondition failed'
+
+scrub_env; make_flight m7i2
+(cd "$G" && seed_testplan RED && seed_plan ungated && seed_commit)
+run_driver -s 7
+chk 'matrix -s 7 without APPROVED testplan: refused' log_has 'phase 7 entry precondition failed'
+
+scrub_env; make_flight m9i
+(cd "$G" && seed_gated_artifacts gated && drop_adr)
+run_driver -s 9
+chk 'matrix -s 9 without design record: refused' log_has 'phase 9 entry precondition failed'
 
 # ------------------------------------------------------------------- result --
 scrub_env

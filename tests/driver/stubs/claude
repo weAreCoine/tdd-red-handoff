@@ -1,5 +1,9 @@
 #!/bin/sh
-# claude stub — the driver invokes: claude -p <policy...> --model <id> <prompt>
-# The prompt is always the last argument; everything else is ignored.
-for last; do :; done
-exec sh "$(dirname "$0")/phase-actor.sh" "$last"
+# claude stub — validates the driver's exact argv contract before acting:
+#   claude -p --permission-mode acceptEdits --model <id> <prompt>
+# A driver regression in how it invokes the harness must fail loudly here,
+# not vanish into a stub that ignores everything but the prompt.
+[ "$#" -eq 6 ] && [ "$1" = -p ] && [ "$2" = --permission-mode ] && [ "$3" = acceptEdits ] \
+  && [ "$4" = --model ] && [ -n "$5" ] \
+  || { echo "claude stub: unexpected argv: $*" >&2; exit 97; }
+exec sh "$(dirname "$0")/phase-actor.sh" "$6"
