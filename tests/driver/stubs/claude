@@ -1,0 +1,5 @@
+#!/bin/sh
+# claude stub — the driver invokes: claude -p <policy...> --model <id> <prompt>
+# The prompt is always the last argument; everything else is ignored.
+for last; do :; done
+exec sh "$(dirname "$0")/phase-actor.sh" "$last"

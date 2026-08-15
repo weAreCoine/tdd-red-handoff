@@ -1,0 +1,4 @@
+#!/bin/sh
+# codex stub — the driver invokes: codex exec <policy...> -m <id> <prompt>
+for last; do :; done
+exec sh "$(dirname "$0")/phase-actor.sh" "$last"
