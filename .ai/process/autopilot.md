@@ -210,8 +210,9 @@ From the design record, produce `{feature}.testplan.md` from `test_plan_template
 test-case inventory — one row per test with exact arrange / act / assert values, applying
 `CLAUDE.md § Test Philosophy`. Every decision the Test Writer would otherwise make must be
 written here. Keep the template's `## 6. Log (append-only)` heading verbatim, exactly once, and
-**last** — every later phase appends under it, and the flight reads that section as running from
-the heading to the next H1/H2, so a section added after it would put those entries outside. Set `Status: DRAFT`, append
+**last** — every later phase appends under it, and the flight reads the Log from that heading to
+the end of the file: a testplan with any section after it is refused as malformed, not read as a
+shorter Log. Set `Status: DRAFT`, append
 the Log entry, commit. On re-entry after a
 rejection, answer the reviewer's notes point by point in the Log.
 
@@ -229,7 +230,9 @@ Transcribe the inventory into test code — one test per row, names verbatim, pl
 is a `blocked` verdict (route `testplan`), not a guess — and a block leaves the testplan's
 status exactly as it was found, the gap written in the Log and nothing else. Run
 `test (focused)`; **verify RED mechanically** — never weaken an assert to force a failure.
-Append the RED output to the Log, set `Status: RED`, commit.
+Append the RED output to the Log **inside a fenced block** — raw test output carries ruler
+lines (`------`) that Markdown reads as a heading, and unfenced they would malform the testplan;
+fenced, the flight treats them as opaque text. Set `Status: RED`, commit.
 
 ### Phase 5 — Test gate (Test Reviewer)
 
@@ -259,7 +262,8 @@ Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the g
 green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
 canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
 under the testplan's `## 6. Log (append-only)` heading, its last section — nowhere else in the
-file, and never after a heading of its own — and commit
+file, never after a heading of its own, and never inside a fenced block (fenced text is opaque to
+the flight) — and commit
 it with the code: that row, in that section, is the durable proof of implementation that
 entering phase 9 requires, and a new one is required on every phase-8 run. A plan that cannot
 be implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log —

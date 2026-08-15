@@ -17,7 +17,7 @@
 #
 # A test scenario overrides a phase by dropping an executable `phase<N>` script
 # into $STUB_SCENARIO_DIR: the stub then runs that INSTEAD of the default,
-# with PHASE/FEATURE/PROBE/VERDICT/TESTPLAN/PLAN/ADR/FLIGHT_DIR exported.
+# with PHASE/FEATURE/PROBE/VERDICT/TESTPLAN/PLAN/ADR/FLIGHT_DIR/MODEL exported.
 # Two failure seams, deliberately different: STUB_BAD_PREFLIGHT_PHASES makes a
 # phase answer the nonce wrongly and stop dead, STUB_BAD_NONCE_MODELS makes the
 # named model ids answer wrongly while doing their canonical work — only the
@@ -39,7 +39,7 @@ TESTPLAN=.ai/plans/$FEATURE.testplan.md
 PLAN=.ai/plans/$FEATURE.md
 ADR=.ai/plans/$FEATURE.adr.md
 FLIGHT_DIR=.ai/autopilot/$FEATURE
-export PHASE FEATURE PROBE VERDICT TESTPLAN PLAN ADR FLIGHT_DIR
+export PHASE FEATURE PROBE VERDICT TESTPLAN PLAN ADR FLIGHT_DIR MODEL
 
 [ -n "$PHASE" ] || { echo "phase-actor: no phase in the prompt" >&2; exit 95; }
 
@@ -79,8 +79,15 @@ ALLOWED="$PRIMARY${LADDER:+ $LADDER}"
 MINE=$(rank "$MODEL")
 [ "$MINE" -gt 0 ] \
   || { echo "phase-actor: phase $PHASE ran model '$MODEL', expected $KEY/$LKEY ('$ALLOWED')" >&2; exit 96; }
-# The ladder is ordered: the primary is tried first, a rung only after it.
-PREV=$(awk -v p="$PHASE" '$1 == p { last = $3 } END { print last }' .ai/autopilot/dispatches 2>/dev/null)
+# The ladder is ordered WITHIN ONE PHASE INVOCATION: the primary is tried
+# first, a rung only after it. Scope matters — a routed re-entry is a NEW
+# invocation and the driver starts it from the primary again, exactly as it
+# does the first time. Comparing against the last id this phase ever used
+# would read that legitimate restart as a rank decrease, fail a healthy
+# dispatch, and hide the re-entry from the recorded sequence. So the
+# comparison looks at the last dispatch OVERALL: it constrains this phase only
+# while it is the one running.
+PREV=$(awk -v p="$PHASE" '{ lp = $1; lm = $3 } END { if (lp == p) print lm }' .ai/autopilot/dispatches 2>/dev/null)
 [ -z "$PREV" ] || [ "$MINE" -ge "$(rank "$PREV")" ] \
   || { echo "phase-actor: phase $PHASE went back to '$MODEL' after '$PREV' — ladder order broken" >&2; exit 96; }
 printf '%s %s %s\n' "$PHASE" "$HARNESS" "$MODEL" >> .ai/autopilot/dispatches

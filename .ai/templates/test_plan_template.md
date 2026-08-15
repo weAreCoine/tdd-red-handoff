@@ -107,15 +107,22 @@
 ## 6. Log (append-only)
 
 <!-- Each phase APPENDS here; never rewrite earlier entries, and keep this the file's LAST
-     section — the autopilot profile reads its Implementation row between this heading and the
-     next H1/H2. This is the feature's audit
+     section — the autopilot profile reads its Implementation row from this heading to the end of
+     the file, and refuses a testplan that has any section after it. Paste command output inside a
+     fenced block: raw output carries ruler lines that Markdown reads as a heading. This is the
+     feature's audit
      trail: the RED output the gate reads, the rejection notes the transcription answers.
      Role labels come from the ACTIVE chapter (pipeline: Designer / Test-Writer / Verifier;
      autopilot: its nine-phase role names — there, every phase logs here, verdicts included). -->
 
 - {date} · **{role}** — Status: READY.
-- {date} · **{role}** — Status: RED. {n} tests written, all failing. Output summary:
-  {key failure lines}. Flags: {none | ambiguities or suspected missing cases, one per line}.
+- {date} · **{role}** — Status: RED. {n} tests written, all failing. Flags:
+  {none | ambiguities or suspected missing cases, one per line}. Output:
+
+  ```
+  {the focused run's output, verbatim — fenced, so its ruler lines stay text}
+  ```
+
 - {date} · **{role}** — Status: {APPROVED | REJECTED(n)}. {point-by-point notes if rejected}.
 
 <!-- FILL: if a phase ran under a tier substitution (`PROJECT_ARCHITECTURE.md § Model Roster`),

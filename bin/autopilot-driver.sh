@@ -287,27 +287,87 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
 # for 8" are observably identical and a direct -s 9 would skip implementation.
 # The signal is a row ON THE LOG — not those bytes anywhere in the file: an
 # inventory row, an example, or a manually misplaced line must not authorize
-# phase 9. Hence the scope: the canonical Log heading of the shipped
-# test_plan_template.md, required exactly once, and the rows below it.
-# Append-only (a re-run after a phase-9 reject adds another row), so the
-# predicate counts rows: at least one, never exactly one.
-# The scope is the Markdown SECTION, not the rest of the file: it starts after
-# the Log heading and ends at the next H1/H2 — a row under a later "## 7. …"
-# is outside the Log exactly like one in the inventory. Deeper headings (###)
-# stay inside, so a phase may structure its own entries.
-LOG_HEAD='^## 6\. Log \(append-only\)$'
-SECTION_END='^#\{1,2\}[[:space:]]'   # BRE: the next H1/H2 closes the section
-IMPL_ROW='^- \*\*Implementation:\*\* GREEN — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$'
-log_head_ok() { # exactly one canonical Log heading — zero or two is not a Log
-  [ -f "$1" ] && [ "$(grep -cE "$LOG_HEAD" "$1")" -eq 1 ]
+# phase 9. Append-only (a re-run after a phase-9 reject adds another row), so
+# the predicate counts rows: at least one, never exactly one.
+#
+# The Log is NORMATIVE-LAST (autopilot.md, phase 2), and that is what makes its
+# scope decidable. Earlier rounds tried to find where the section ENDS — first
+# end-of-file, then "the next column-zero H1/H2" — and every heading form the
+# predicate did not know (0-3-space ATX, Setext) became another way to sit
+# outside the Log while counting as inside it. So the direction is inverted:
+# the reader does not look for the end, it REFUSES an artifact that has
+# anything after the Log. Missing a boundary would be a bypass; seeing one that
+# is not there is a stop the operator can read and fix.
+#
+# Fenced blocks are opaque: inside ``` or ~~~ nothing counts — not a heading,
+# not a GREEN row. That is why phase 4 fences the RED output it pastes here
+# (autopilot.md, phase 4): real test output carries ruler lines ("------")
+# that Markdown reads as a Setext heading, and unfenced they would make an
+# honest testplan malformed.
+#
+# One awk pass, and the canonical strings live in exactly one place. awk is
+# POSIX, like the sed/grep the rest of the driver uses.
+LOG_AWK='
+BEGIN { fence = ""; head = 0; dup = 0; tail = 0; green = 0; para = 0 }
+{
+  line = $0
+  match(line, /^ */); ind = RLENGTH; body = substr(line, ind + 1)
+  # fences: 0-3 space indent, closed by the same character
+  if (ind <= 3 && (substr(body, 1, 3) == "```" || substr(body, 1, 3) == "~~~")) {
+    ch = substr(body, 1, 1)
+    if (fence == "") fence = ch; else if (fence == ch) fence = ""
+    para = 0; next
+  }
+  if (fence != "") { para = 0; next }
+  # ATX heading, 0-3 space indent. H1/H2 bound sections; deeper ones do not, so
+  # a phase may still structure its own Log entries.
+  hn = 0
+  if (ind <= 3) {
+    h = body
+    while (substr(h, 1, 1) == "#") { hn++; h = substr(h, 2) }
+    if (hn > 0 && h != "" && substr(h, 1, 1) != " " && substr(h, 1, 1) != "\t") hn = 0
+  }
+  if (hn > 0) {
+    if (hn <= 2) {
+      if (line == "## 6. Log (append-only)") { head++; if (head > 1) dup = 1 }
+      else if (head > 0) tail = 1
+    }
+    para = 0; next
+  }
+  # Setext underline: a heading only under a paragraph line — a ruler under a
+  # list item or a blank line is a thematic break, not a section boundary.
+  if (ind <= 3 && para && (body ~ /^-+[ \t]*$/ || body ~ /^=+[ \t]*$/)) {
+    if (head > 0) tail = 1
+    para = 0; next
+  }
+  if (head > 0 && line ~ /^- \*\*Implementation:\*\* GREEN — [0-9][0-9][0-9][0-9]-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$/) green++
+  if (body == "" || body ~ /^([-*+]|[0-9]+[.)])([ \t]|$)/ || substr(body, 1, 1) == ">") para = 0
+  else para = 1
 }
-impl_green_count() { # canonical GREEN rows inside the canonical Log section
-  if log_head_ok "$1"; then
-    tail -n +"$(( $(grep -nE "$LOG_HEAD" "$1" | cut -d: -f1) + 1 ))" "$1" \
-      | sed -n "/$SECTION_END/q;p" | grep -cE "$IMPL_ROW"
-  else
-    echo 0
-  fi
+END {
+  shape = "ok"
+  if (head == 0) shape = "nohead"; else if (dup) shape = "dup"; else if (tail) shape = "tail"
+  printf "%s %d\n", shape, green
+}'
+log_scan() { # $1 = file -> LOG_SHAPE, LOG_GREEN; 1 when there is no file to read
+  LOG_SHAPE=missing; LOG_GREEN=0
+  [ -f "$1" ] || return 1
+  scan=$(awk "$LOG_AWK" "$1") || return 1
+  LOG_SHAPE=${scan% *}; LOG_GREEN=${scan#* }
+}
+log_shape_ok() { log_scan "$1" && [ "$LOG_SHAPE" = ok ]; }
+log_shape_why() { # the refusal in the operator's words — never "the row is missing"
+  log_scan "$1"
+  case $LOG_SHAPE in
+    ok)      echo '' ;;
+    missing) echo "$1 is missing" ;;
+    nohead)  echo "no canonical '## 6. Log (append-only)' heading (exactly one is required)" ;;
+    dup)     echo "more than one canonical Log heading — 'the Log' must be one place" ;;
+    tail)    echo "a section starts after the Log — it must be the file's last section (fence pasted output)" ;;
+  esac
+}
+impl_green_count() { # canonical GREEN rows on the Log of a well-shaped testplan
+  if log_shape_ok "$1"; then echo "$LOG_GREEN"; else echo 0; fi
 }
 impl_green() { [ "$(impl_green_count "$1")" -ge 1 ]; }
 
@@ -362,13 +422,20 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
     7) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
          && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && ! has_gate_row "$PLAN" \
          || REASON="phase 7 judges an ungated RED plan against the gated testplan and $ADR (phase 7 stamps the Gate itself)" ;;
-    8) nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
-         && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
-         || REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row" ;;
-    9) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
-         && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
-         && impl_green "$TESTPLAN" \
-         || REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED carrying the Implementation GREEN row on its canonical Log + gated RED plan" ;;
+    8) if ! { nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+              && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
+         REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row"
+       elif ! log_shape_ok "$TESTPLAN"; then
+         REASON="the testplan Log is malformed, so phase 8 could not leave its proof there: $(log_shape_why "$TESTPLAN")"
+       fi ;;
+    9) if ! { adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+              && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
+         REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED + gated RED plan"
+       elif ! log_shape_ok "$TESTPLAN"; then
+         REASON="the testplan Log is malformed, so no row in it proves anything: $(log_shape_why "$TESTPLAN")"
+       elif ! impl_green "$TESTPLAN"; then
+         REASON="no Implementation GREEN row on the testplan's canonical Log — phase 8 has not completed on this testplan"
+       fi ;;
   esac
   [ -z "$REASON" ]
 }
@@ -383,12 +450,12 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
 artifact_ok() { # $1 = phase, $2 = route
   case $1 in
     2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && status_line_is "$TESTPLAN" DRAFT \
-         && log_head_ok "$TESTPLAN" ;;   # the Log every later phase appends to must exist, once
+         && log_shape_ok "$TESTPLAN" ;;  # the Log every later phase appends to: once, and last
     3) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" READY
        else status_line_is "$TESTPLAN" DRAFT; fi ;;
     4) if [ "$2" = testplan ]; then   # blocked: the READY/REJECTED(n) input must survive untouched
          nontrivial "$TESTPLAN" 400 && [ "$(status_row "$TESTPLAN")" = "$ENTRY_STATUS_ROW" ] \
-           && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
+           && log_shape_ok "$TESTPLAN" && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
        else status_line_is "$TESTPLAN" RED; fi ;;
     5) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" APPROVED
        else status_line_is "$TESTPLAN" "REJECTED\($EXPECTED_REJ\)"; fi ;;
@@ -399,7 +466,7 @@ artifact_ok() { # $1 = phase, $2 = route
     8) if [ "$2" = plan ]; then   # blocked: gated inputs intact, and no GREEN row claimed
          nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
            && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
-           && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
+           && log_shape_ok "$TESTPLAN" && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
        else [ "$(impl_green_count "$TESTPLAN")" -gt "$ENTRY_GREEN" ]; fi ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
        else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
@@ -411,13 +478,13 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
   notes=''
   [ -n "$3" ] && notes="A previous verdict bounced this work back to you — read the notes in $3 and answer them point by point in the testplan Log. "
   case $1 in
-    2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, the template'"'"'s Log heading "## 6. Log (append-only)" kept verbatim and exactly once (every later phase appends under it), your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
+    2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, the template'"'"'s Log heading "## 6. Log (append-only)" kept verbatim, exactly once, and LAST — no section may follow it (every later phase appends under it), your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
     3) printf 'Judge %s against %s and the repository, per your phase contract. Approve: set the canonical Status line to READY, append your Log entry, commit. Reject: append point-by-point notes to the Log, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, these three keys, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "testplan".' "$TESTPLAN" "$ADR" "$2" ;;
-    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log, set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
+    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log INSIDE a fenced block (```) — unfenced output can carry ruler lines that Markdown reads as a new section, which would malform the testplan — set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", nowhere else — and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", which is the file'"'"'s last section: nowhere else, never under a heading of your own, never inside a fenced block — and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
     9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }

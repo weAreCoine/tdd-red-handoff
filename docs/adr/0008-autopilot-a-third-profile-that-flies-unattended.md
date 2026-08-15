@@ -238,33 +238,117 @@ case it is being asked to carry.
   different mutant), and the delayed-reset assertion is documented as race-dependent and
   therefore not part of any exact count.
 
-Mutation evidence, all against the current suite — **177 assertions**, 0 failures unmutated.
-Each mutant is a single-line change to `bin/autopilot-driver.sh`, run against the unmodified
-suite in a full copy of the tracked tree (`git archive HEAD`; a partial copy of `bin/` +
-`tests/` alone breaks the scenario that reads `.ai/templates/`, and every mutant then appears
-to gain one detection it has not earned):
+Mutation evidence for that round was taken against a 177-assertion suite; the sixth round
+re-measured the whole table on the suite as it stands. The current numbers are below.
 
-| Mutant | Failures |
-|---|---:|
-| `phase_harness` returns the producer harness for every phase | 57 |
-| `impl_green` back to a whole-file grep (fourth-round defect) | 6 |
-| the preflight nonce check replaced by `:` | 6 |
-| the raw-file NUL rejection removed | 5 |
-| `artifact_ok` phase 8 back to its pre-fix form | 5 |
-| the Log scan back to end-of-file (fifth-round defect) | 2 |
-| the reviewer ladder tried before the primary | 2 |
-| the push reverted to `git push -u origin "feature/<f>"` | 1 |
-| `artifact_ok` phase 4 back to its pre-fix form | 1 |
-| phase 2's canonical Log heading requirement removed | 1 |
-| the publication-time clean-tree recheck removed | 0 — declared gap |
+## Amendments (2026-08-15 — sixth implementation review)
 
-Known residuals, carried forward and added to:
+A sixth independent review reproduced the fifth round's mutation table exactly — no differing
+counts — and confirmed the preflight and ladder fixes. It left one blocker in the same family
+as the round-5 blocker, and five findings that were all about the suite rather than the driver.
+The family is the finding: for four rounds the same safety property — *durable proof that phase
+8 ran* — was patched wherever the reviewer's reproduction pointed (the row is anywhere in the
+file → require it after the heading; the scope runs to EOF → end it at the next `## `), while
+the invariant the contract had stated from the start, "the Log is the file's **last** section",
+was never checked by anything.
 
-- A canonical GREEN row inside a fenced block *within* the Log section still counts.
+- **The Log's scope is now decided by refusal, not by detection.** Markdown opens a section
+  with more than a column-zero `## `: an ATX heading may be indented up to three spaces, and a
+  Setext heading is a text line underlined with `---` or `===`. Every form the predicate did
+  not know was another way to sit outside the Log while counting as inside it, so the reader
+  stopped looking for the end: it reads the Log from its heading to end of file and **refuses**
+  a testplan that has any H1/H2 after it. Missing a boundary would be a bypass; seeing one that
+  is not there is a stop the operator can read. The same predicate — one awk pass, one place
+  where the canonical strings live — is used by phase 2's artifact backstop (the shape is
+  checked where the artifact is *produced*, not only where it is consumed), by the blocked
+  producers' input check, and by the entry preconditions of phases 8 and 9, whose refusal now
+  names the shape violation instead of blaming a missing row.
+- **Pasted output is fenced, and fences are opaque.** Making a ruler line a heading is only
+  safe if honest content cannot contain one: real test output does (`unittest` prints a rule of
+  dashes before its summary). So phase 4's contract, the template's Log and the driver's phase-4
+  prompt now require the RED output **inside a fenced block**, and inside a fence nothing counts
+  — not a heading, not the GREEN row. That closes the round-4 residual (a fenced canonical row
+  counted as proof) in the same pass, and phase 8 is told the row must never be fenced.
+- **The suite now names routing, caps, entry, config, lock and report.** Six one-line mutants
+  survived 177 green assertions: an implementation-plan bounce could be routed back to test
+  inventory, the edge cap could refuse the last edge the operator configured, `flight.env` could
+  go unvalidated, the artifact floors could degrade to existence checks, phases 3 and 7 could
+  judge without the design record, a second driver could walk through an existing lock, a
+  completed flight could leave one behind, and the operator's report could lose its counters,
+  its journey and the verdict that explains the stop. Each is now killed by a scenario that
+  asserts the specific thing: the route token's destination (`8 -> 6`), edge N taken and edge
+  N+1 refused *by number*, `flight.env` duplicates/unknown keys/malformed lines, non-empty
+  artifacts below their floor, `-s 3` and `-s 7` without an ADR, a pre-existing lock, the lock's
+  absence after DONE / STOPPED / interruption, and the report's exact counter line, journey
+  lines and verdict bytes.
+- **The publication-time clean-tree recheck is tested, and the declared gap was wrong.** It was
+  recorded as untestable without concurrency. It is not: a `git` on `PATH` that delegates every
+  call to the real one and dirties the tree once, at the first call after the driver logs
+  "phase 9 approved", hits the seam deterministically with a command count and no timing. The
+  flight stops, nothing is published, and removing the recheck flips exactly that scenario.
+- **The test actor's ladder order was scoped to the flight instead of the invocation.** The stub
+  compared each dispatch with the last model that phase had *ever* used, so a routed re-entry —
+  which the driver always starts from the primary again — was refused as a rank decrease: a
+  false failure that also hid the re-entry from the recorded sequence. It now compares only
+  while the phase is the one running, and a scenario drives a phase-5 bounce back through
+  phases 2 and 3 and asserts the whole 18-dispatch sequence across the bounce.
+
+### What the behavior suite is a safety case for
+
+Mutation testing over a 650-line script does not converge: a survivor exists for every line no
+assertion pins, so each round can produce a fresh table indefinitely. The suite is therefore
+declared complete against **six safety properties**, each of which must carry at least one
+mutation-killing assertion: publication integrity, entry preconditions, caps and routing,
+terminal state and lock, configuration fail-fast, and report honesty. Survivors outside those
+six are recorded here as known-unprotected lines, not as open findings.
+
+Mutation evidence, all against the current suite — **247 assertions**, 0 failures unmutated.
+Each mutant is a single change to `bin/autopilot-driver.sh` (the last row mutates the test
+actor instead), run against the unmodified suite in a full copy of the tracked tree (a partial
+copy of `bin/` + `tests/` alone breaks the scenario that reads `.ai/templates/`, and every
+mutant then appears to gain one detection it has not earned):
+
+| Mutant | Property | Failures |
+|---|---|---:|
+| `phase_harness` returns the producer harness for every phase | entry/dispatch | 80 |
+| the Log scan back to end-of-file (fifth-round defect) | publication | 12 |
+| the preflight nonce check replaced by `:` | entry | 7 |
+| `flight.env` no longer validated | config fail-fast | 6 |
+| the raw-file NUL rejection removed | entry | 5 |
+| Setext headings no longer close the Log (sixth-round defect) | publication | 5 |
+| `route_phase` sends `plan` to phase 2 instead of 6 | routing | 5 |
+| `impl_green` back to a whole-file grep (fourth-round defect) | publication | 4 |
+| `nontrivial` degraded to an existence check | entry | 4 |
+| phase 2's canonical Log shape requirement removed | publication | 4 |
+| the publication-time clean-tree recheck removed | publication | 4 |
+| a failed lock acquisition ignored | terminal state/lock | 4 |
+| the journey dropped from the report | report honesty | 4 |
+| indented ATX headings no longer close the Log | publication | 3 |
+| fenced blocks read as Markdown (headings and rows count) | publication | 3 |
+| the reviewer ladder tried before the primary | entry | 3 |
+| the lock never released | terminal state/lock | 3 |
+| the report counters forced to zero | report honesty | 3 |
+| `artifact_ok` phase 8 back to its pre-fix form | publication | 2 |
+| the edge cap refuses edge N instead of N+1 | caps | 2 |
+| phase 3's `adr_ok` entry requirement removed | entry | 2 |
+| phase 7's `adr_ok` entry requirement removed | entry | 2 |
+| phase 8's entry Log-shape check removed | entry | 2 |
+| the test actor's ladder order scoped to the flight | *(test harness)* | 2 |
+| the push reverted to `git push -u origin "feature/<f>"` | publication | 1 |
+| `artifact_ok` phase 4 back to its pre-fix form | publication | 1 |
+| the last verdict dropped from the report | report honesty | 1 |
+| the `RUNNING` → `STOPPED` conversion on an abnormal exit | terminal state | 0 — declared gap |
+
+Known residuals and declared gaps:
+
 - A *direct* `-s 9` can still ride an earlier attempt's in-Log row (see the fourth round).
 - The window between the driver's last pre-push check and git's own refspec resolution.
-- The publication-time clean-tree recheck has no deterministic test: between phase 9's own
-  clean-tree check and the push, nothing in the driver writes to the tree, so dirtying it
-  requires concurrency — the same class as the refspec window. With `HEAD` pinned to the
-  accepted commit, a dirty tree cannot change *what* is published, only the honesty of the
-  report; the recheck stays as defence in depth, untested by construction.
+- `cleanup`'s `RUNNING` → `STOPPED` arm has no faithful injection: an untrapped fatal signal
+  terminates the shell **without** running the EXIT trap, and every in-driver exit path after
+  `RUNNING` is written goes through `stop_flight`, which writes its own terminal status. So the
+  arm only fires for a shell-level abort no test can produce without mutating the driver. What
+  *is* tested is everything around it: the lock is exclusive, it is released after DONE, after
+  STOPPED and after an interruption, and `SIGTERM` mid-flight leaves `STOPPED` and nothing
+  pushed. That scenario carries no timing assumption either: the stub holds the driver in the
+  foreground until the test has sent the signal — a trap runs only after the foreground child
+  returns — so the ordering is explicit instead of a race against a fixed sleep.

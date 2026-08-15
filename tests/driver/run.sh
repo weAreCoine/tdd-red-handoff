@@ -112,6 +112,29 @@ seed_impl_green_under_subheading() { # inside the Log, under a deeper heading
   printf '\n### Rejection notes\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
     >> .ai/plans/demo.testplan.md
 }
+seed_impl_green_after_setext() { # the row under a SETEXT H2 — a section, without a '#'
+  printf '\nAppendix\n--------\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_after_indented_atx() { # the row under an ATX H2 indented 2 spaces
+  printf '\n  ## Appendix\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_log_fenced_output() { # what phase 4 really pastes: rulers and a '## ' line, fenced
+  printf '\n```\nRan 12 tests in 0.42s\n----------------------------------------------------------------------\nFAILED (failures=12)\n## not a heading — this is captured stdout\n```\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_fenced() { # the row inside a fenced block: text, not a claim
+  printf '\n```\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n```\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_tiny_testplan() { # non-empty but below the artifact floor
+  printf '# Test plan — demo\n\n> **Status:** %s\n' "$1" > .ai/plans/demo.testplan.md
+}
+seed_tiny_adr() { # non-empty but below the design-record floor
+  printf '# Design record — demo\n' > .ai/plans/demo.adr.md
+  git add -A && git commit -qm 'chore: demo trimmed design record (TEST-1)'
+}
 seed_second_log_head() { # a duplicate Log heading: "the Log" stops being one place
   printf '\n## 6. Log (append-only)\n\n- a second Log section\n' >> .ai/plans/demo.testplan.md
 }
@@ -907,6 +930,285 @@ ladder_matrix_ok() { # primary exhausted twice, then the rung — for every revi
   [ "$(cat "$G/.ai/autopilot/dispatches")" = "$want" ]
 }
 chk 'ladder rung completes the phase: exact primary-then-rung dispatch order' ladder_matrix_ok
+
+echo '# R6-B1: the Log is normative-LAST — no heading form may open a section after it'
+scrub_env; make_flight b1setext
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_setext && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row under a Setext heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'GREEN row under a Setext heading: the shape is named, not the row' log_has 'last section'
+chk 'GREEN row under a Setext heading: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight b1indent
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_indented_atx && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row under an indented ATX heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'GREEN row under an indented ATX heading: the shape is named' log_has 'last section'
+
+scrub_env; make_flight b1fenced
+(cd "$G" && seed_testplan APPROVED && seed_log_fenced_output && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+# The canary for the fix itself: a real RED paste — ruler lines, a '## ' line —
+# is opaque text inside its fence, so an honest testplan still flies.
+chk 'fenced RED output in the Log: -s 9 accepted' st DONE
+
+scrub_env; make_flight b1fencedgreen
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_fenced && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row inside a fenced block: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'GREEN row inside a fenced block: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight b1p2tail
+SC=$BASE/sc-b1p2tail; mkdir -p "$SC"
+cat > "$SC/phase2" <<'EOF'
+{
+  printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
+  i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
+  printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n\n## 7. Appendix\n\n- a section after the Log\n'
+} > "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo test inventory (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'testplan with a section after the Log: STOPPED at phase 2' st STOPPED
+chk 'testplan with a section after the Log: backstop fired' log_has 'expected artifact/status'
+chknot 'testplan with a section after the Log: phase 2 never accepted' log_has 'phase 2 ok'
+
+scrub_env; make_flight b1p8entry
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_setext && seed_plan gated && seed_commit)
+run_driver -s 8
+chk 'malformed Log: -s 8 refused before the Implementer' log_has 'phase 8 entry precondition failed'
+chknot 'malformed Log: the Implementer never launched' log_has 'phase 8 (Implementer)'
+
+echo '# R6-M1: every route names its destination, and the edge cap is inclusive'
+scrub_env; make_flight capedge
+SC=$BASE/sc-capedge; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+printf -- '- stub: blocked, the plan cannot be implemented as written\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+EOF
+AP_MAX_EDGES=2 STUB_SCENARIO_DIR=$SC; export AP_MAX_EDGES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'edge cap: edge 1 is taken and routed 8 -> 6' log_has 'backward edge 1/2: phase 8 -> 6 (route: plan)'
+chk 'edge cap: edge 2 — the configured last one — is taken too' log_has 'backward edge 2/2: phase 8 -> 6 (route: plan)'
+chk 'edge cap: edge 3 is the first refused edge, by number' log_has 'global cap: backward edge 3 exceeds 2'
+chk 'edge cap: STOPPED' st STOPPED
+chk 'edge cap: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight rep7
+SC=$BASE/sc-rep7; mkdir -p "$SC"
+cat > "$SC/phase7" <<'EOF'
+if grep -qF 'stub: plan gate reject' "$TESTPLAN"; then
+  printf -- '- **Gate:** APPROVED — 2026-08-15, all gate checks passed (CLAUDE.md, gate phase)\n' >> "$PLAN"
+  printf -- '- stub: plan gate passed on retry\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo plan gate (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"plan ok"}' > "$VERDICT"
+else
+  printf -- '- stub: plan gate reject, point-by-point notes\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo plan gate reject (TEST-1)'
+  printf '{"verdict":"reject","route":"plan","notes":"a signature was not copied verbatim"}' > "$VERDICT"
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'plan gate reject: still DONE' st DONE
+chk 'plan gate reject: routed 7 -> 6' log_has 'phase 7 -> 6 (route: plan)'
+chk 'plan gate reject: one rejection on gate 7' test "$(cat "$S/rej.7")" -eq 1
+
+scrub_env; make_flight rep9
+SC=$BASE/sc-rep9; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+if grep -qF 'stub: final review reject' "$TESTPLAN"; then
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+  printf -- '- stub: final review passed on retry\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+else
+  printf -- '- stub: final review reject, the code misses a listed case\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review reject (TEST-1)'
+  printf '{"verdict":"reject","route":"implementation","notes":"one listed case is not covered"}' > "$VERDICT"
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'final review reject: still DONE' st DONE
+chk 'final review reject: routed 9 -> 8' log_has 'phase 9 -> 8 (route: implementation)'
+chk 'final review reject: the second implementation added its own GREEN row' \
+  test "$(grep -c -- '^- \*\*Implementation:\*\* GREEN' "$G/.ai/plans/demo.testplan.md")" -eq 2
+
+echo '# R6-m2: the report is the recovery handoff — counters, journey, last verdict'
+chk 'report: the real counters, not zeros' \
+  grep -qF 'Backward edges: 1/6 · gate rejections: 3:0 5:0 7:0 9:1' "$S/report.md"
+chk 'report: the PR body carries the same counters' \
+  grep -qF 'Backward edges: 1/6 · gate rejections: 3:0 5:0 7:0 9:1' "$S/pr-body.md"
+chk 'report: the journey is there' grep -qF '## Journey' "$S/report.md"
+chk 'report: the journey holds the start line' grep -qF 'flight start — feature demo' "$S/report.md"
+chk 'report: the journey holds the backward edge' grep -qF 'backward edge 1/6: phase 9 -> 8' "$S/report.md"
+
+scrub_env; make_flight repstop
+SC=$BASE/sc-gatecap; STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'stopped report: status STOPPED' st STOPPED
+chk 'stopped report: the counters at the stop' \
+  grep -qF 'Backward edges: 3/6 · gate rejections: 3:3 5:0 7:0 9:0' "$S/report.md"
+chk 'stopped report: the last verdict, byte for byte' \
+  grep -qF '{"verdict":"reject","route":"testplan","notes":"inventory faults"}' "$S/report.md"
+chk 'stopped report: the journey holds the stop line' grep -qF 'STOP: gate cap' "$S/report.md"
+chk 'stopped report: the journey holds an edge line' grep -qF 'backward edge 1/6: phase 3 -> 2' "$S/report.md"
+
+echo '# R6-M2: the flight binding is parsed as strictly as the model binding'
+scrub_env; make_flight fltdup
+printf "AP_ISSUE_REF='TEST-2'\n" >> "$S/flight.env"
+run_driver
+chk 'flight.env duplicate key: exit 2' test "$RC" -eq 2
+chk 'flight.env duplicate key: named' out_has 'duplicate key'
+
+scrub_env; make_flight fltunknown
+printf "AP_EVIL='x'\n" >> "$S/flight.env"
+run_driver
+chk 'flight.env unknown key: exit 2' test "$RC" -eq 2
+chk 'flight.env unknown key: named' out_has 'unknown key'
+
+scrub_env; make_flight fltmalformed
+printf 'AP_ISSUE_REF=$(boom)\n' >> "$S/flight.env"
+run_driver
+chk 'flight.env malformed line: exit 2' test "$RC" -eq 2
+chk 'flight.env malformed line: named' out_has 'malformed line'
+
+echo '# R6-M2: the artifact floors are floors, not existence checks'
+scrub_env; make_flight floor4
+(cd "$G" && seed_tiny_testplan READY && seed_commit)
+run_driver -s 4
+chk 'below-floor testplan: -s 4 refused' log_has 'phase 4 entry precondition failed'
+chknot 'below-floor testplan: the Test Writer never launched' log_has 'phase 4 (Test Writer)'
+
+scrub_env; make_flight floor2
+(cd "$G" && seed_tiny_adr)
+run_driver
+chk 'below-floor design record: -s 2 refused' log_has 'phase 2 entry precondition failed'
+chknot 'below-floor design record: the TestPlan Designer never launched' log_has 'phase 2 (TestPlan Designer)'
+
+echo '# R6-M2: the judging phases need the design record they judge against'
+scrub_env; make_flight adr3
+(cd "$G" && seed_testplan DRAFT && seed_commit && drop_adr)
+run_driver -s 3
+chk 'no design record: -s 3 refused' log_has 'phase 3 entry precondition failed'
+chknot 'no design record: the TestPlan Reviewer never launched' log_has 'phase 3 (TestPlan Reviewer)'
+
+scrub_env; make_flight adr7
+(cd "$G" && seed_testplan APPROVED && seed_plan ungated && seed_commit && drop_adr)
+run_driver -s 7
+chk 'no design record: -s 7 refused' log_has 'phase 7 entry precondition failed'
+chknot 'no design record: the Plan Reviewer never launched' log_has 'phase 7 (Plan Reviewer)'
+
+echo '# R6-M3: one driver per flight, and every exit leaves the lock behind it'
+scrub_env; make_flight locked
+mkdir -p "$S/lock"
+run_driver
+chk 'existing lock: exit 2' test "$RC" -eq 2
+chk 'existing lock: another driver named' out_has 'another driver may be flying'
+chknot 'existing lock: no state written' test -f "$S/status"
+chk 'existing lock: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+run_driver -F
+chk 'forced relaunch over a stale lock: DONE' st DONE
+chk 'lock released after DONE' test ! -d "$S/lock"
+
+scrub_env; make_flight lockstop
+SC=$BASE/sc-gatecap; STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'lock released after STOPPED' test ! -d "$S/lock"
+
+scrub_env; make_flight sigterm
+SC=$BASE/sc-sigterm; mkdir -p "$SC"
+# The stub holds the driver in the foreground until the test has sent the
+# signal — a trap runs only after the foreground child returns, so the ordering
+# is explicit (kill, then release) instead of a race against a fixed sleep.
+cat > "$SC/phase2" <<'EOF'
+touch "$FLIGHT_DIR/p2-running"
+i=0
+while [ ! -f "$FLIGHT_DIR/p2-signalled" ] && [ "$i" -lt 300 ]; do sleep 0.2; i=$((i+1)); done
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+OUT=$G.out
+AP_CLAUDE_BIN=$STUBS/claude AP_CODEX_BIN=$STUBS/codex AP_GH_BIN=$STUBS/gh \
+  "$DRIVER" -f demo "$G" > "$OUT" 2>&1 &
+DPID=$!
+i=0; while [ ! -f "$S/p2-running" ] && [ "$i" -lt 300 ]; do sleep 0.2; i=$((i+1)); done
+chk 'interrupted flight: the phase really was in flight' test -f "$S/p2-running"
+kill -TERM "$DPID" 2>/dev/null
+touch "$S/p2-signalled"
+wait "$DPID"; RC=$?
+chk 'interrupted flight: exit 1' test "$RC" -eq 1
+chk 'interrupted flight: status STOPPED, never left RUNNING' st STOPPED
+chk 'interrupted flight: the reason is the interruption' log_has 'STOP: interrupted'
+chk 'interrupted flight: lock released' test ! -d "$S/lock"
+chk 'interrupted flight: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# R6-m1: the publication-time clean-tree recheck, deterministically'
+scrub_env; make_flight pubdirty
+WRAP=$BASE/wrap-pubdirty; mkdir -p "$WRAP"
+REAL_GIT=$(command -v git)
+# A git that delegates every call to the real one and, at the publication seam
+# (the first call after the driver logs "phase 9 approved"), dirties the tree
+# once — the surviving-child case, with a command count instead of a race.
+cat > "$WRAP/git" <<EOF
+#!/bin/sh
+FS=$G/.ai/autopilot/demo
+if [ ! -f "\$FS/dirtied" ] && grep -q 'phase 9 approved' "\$FS/driver.log" 2>/dev/null; then
+  : > "\$FS/dirtied"
+  : > $G/leftover-from-a-surviving-child
+fi
+exec $REAL_GIT "\$@"
+EOF
+chmod +x "$WRAP/git"
+OUT=$G.out
+(cd "$G" && PATH=$WRAP:$PATH AP_CLAUDE_BIN=$STUBS/claude AP_CODEX_BIN=$STUBS/codex AP_GH_BIN=$STUBS/gh \
+   "$DRIVER" -f demo .) > "$OUT" 2>&1
+RC=$?
+chk 'dirtied at the publication seam: exit 1' test "$RC" -eq 1
+chk 'dirtied at the publication seam: STOPPED' st STOPPED
+chk 'dirtied at the publication seam: the publication check is named' \
+  log_has 'working tree not clean at publication time'
+chk 'dirtied at the publication seam: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+chk 'dirtied at the publication seam: the injection really happened' test -f "$G/leftover-from-a-surviving-child"
+
+echo '# R6-m3: a routed re-entry starts from the primary again — the ladder is per invocation'
+scrub_env; make_flight ladderreentry "AP_LADDER_REVIEW='rev-2'"
+SC=$BASE/sc-ladderreentry; mkdir -p "$SC"
+cat > "$SC/phase5" <<'EOF'
+[ "$MODEL" = rev-2 ] || exit 0   # the primary fails its nonce anyway; leave the tree alone
+if [ -f "$FLIGHT_DIR/p5-bounced" ]; then
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** APPROVED/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+  printf -- '- stub: test gate passed on the amended inventory\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo test gate (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"fixed"}' > "$VERDICT"
+else
+  touch "$FLIGHT_DIR/p5-bounced"
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** REJECTED(1)/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+  printf -- '- stub: inventory fault, back to the TestPlan Designer\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo test gate reject (TEST-1)'
+  printf '{"verdict":"reject","route":"testplan","notes":"an inventory row has no expected value"}' > "$VERDICT"
+fi
+EOF
+STUB_BAD_NONCE_MODELS='rev-1'; AP_MAX_TRIES=1; STUB_SCENARIO_DIR=$SC
+export STUB_BAD_NONCE_MODELS AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'ladder re-entry: DONE' st DONE
+chk 'ladder re-entry: routed 5 -> 2' log_has 'phase 5 -> 2 (route: testplan)'
+reentry_matrix_ok() { # phase 3 is re-entered from the PRIMARY, not from the rung it ended on
+  want=$(printf '%s\n' '2 codex flag-1' '3 claude rev-1' '3 claude rev-2' \
+                       '4 codex cost-1' '5 claude rev-1' '5 claude rev-2' \
+                       '2 codex flag-1' '3 claude rev-1' '3 claude rev-2' \
+                       '4 codex cost-1' '5 claude rev-1' '5 claude rev-2' \
+                       '6 codex flag-1' '7 claude rev-1' '7 claude rev-2' \
+                       '8 codex mid-1' '9 claude rev-1' '9 claude rev-2')
+  [ "$(cat "$G/.ai/autopilot/dispatches")" = "$want" ]
+}
+chk 'ladder re-entry: exact dispatch sequence across the bounce' reentry_matrix_ok
+chk 'ladder re-entry: the actor saw every dispatch the driver made' \
+  test "$(cat "$S/dispatch")" -eq "$(wc -l < "$G/.ai/autopilot/dispatches")"
 
 # ------------------------------------------------------------------- result --
 scrub_env

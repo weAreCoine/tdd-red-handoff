@@ -54,7 +54,7 @@ feature = one PR. No continuous loop: the process terminates at phase 9.
 | 1 | Designer | Anthropic top tier | interactive session with the operator | branch from `develop`, tracker issue → in progress, `{feature}.adr.md`, commit | — |
 | 2 | TestPlan Designer | OpenAI flagship tier | `codex exec`, agentic | `{feature}.testplan.md` (`DRAFT`), commit | — (receives bounces from 3, 4, 5) |
 | 3 | TestPlan Reviewer | Anthropic review tier | `claude -p` | routed verdict; approval grants `READY` | reject → 2 |
-| 4 | Test Writer | OpenAI cost-efficient tier | `codex exec`, agentic | RED tests, commit; testplan → `RED` | plan unworkable → 2 |
+| 4 | Test Writer | OpenAI cost-efficient tier | `codex exec`, agentic | RED tests, commit; RED output fenced on the Log; testplan → `RED` | plan unworkable → 2 |
 | 5 | Test Reviewer | Anthropic review tier | `claude -p` | routed verdict → `APPROVED`/`REJECTED(n)` | minor → 4 · structural → 2 |
 | 6 | Handoff Planner | OpenAI flagship tier | `codex exec`, agentic | `{feature}.md` (implementation plan), commit | — (receives bounces from 7, 8, 9) |
 | 7 | Plan Reviewer | Anthropic review tier | `claude -p` | `Gate: APPROVED` on the plan | reject → 6 |
@@ -121,7 +121,7 @@ When the previous-generation model is retired, update the ladder via `/update-mo
 | Gate 5 outcome | `APPROVED`/`REJECTED(n)` | Exactly pipeline's gate. |
 | Gate 7 outcome | `Gate: APPROVED` on the plan | Uniform reading across profiles: "the approval that authorizes implementation". Who stamped it is in the Log. |
 | Gate 9 outcome | `DONE` on the plan | The plan's own two-value status, already stamped by the review phase in both existing chapters. |
-| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). |
+| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). The Log is the testplan's last section and the driver refuses one with any section after it, so the row's scope is decidable; fenced text is opaque, which is why pasted output is fenced and the row never is (sixth review). |
 | Flight state | `.ai/autopilot/{feature}/`, gitignored | Verdict JSONs, counters, preflight nonces, event logs, `report.md`. Operational, not an interface between roles: the durable record is in the artifacts. |
 
 **Backward compatibility** is by addition: a plan without a `Gate` row comes from a profile
