@@ -238,18 +238,20 @@ case it is being asked to carry.
   different mutant), and the delayed-reset assertion is documented as race-dependent and
   therefore not part of any exact count.
 
-Mutation evidence, all against the current suite (176 assertions, 0 failures unmutated).
+Mutation evidence, all against the current suite — **177 assertions**, 0 failures unmutated.
 Each mutant is a single-line change to `bin/autopilot-driver.sh`, run against the unmodified
-suite:
+suite in a full copy of the tracked tree (`git archive HEAD`; a partial copy of `bin/` +
+`tests/` alone breaks the scenario that reads `.ai/templates/`, and every mutant then appears
+to gain one detection it has not earned):
 
 | Mutant | Failures |
 |---|---:|
-| `phase_harness` returns the producer harness for every phase | 56 |
+| `phase_harness` returns the producer harness for every phase | 57 |
 | `impl_green` back to a whole-file grep (fourth-round defect) | 6 |
-| the Log scan back to end-of-file (fifth-round defect) | 2 |
 | the preflight nonce check replaced by `:` | 6 |
 | the raw-file NUL rejection removed | 5 |
 | `artifact_ok` phase 8 back to its pre-fix form | 5 |
+| the Log scan back to end-of-file (fifth-round defect) | 2 |
 | the reviewer ladder tried before the primary | 2 |
 | the push reverted to `git push -u origin "feature/<f>"` | 1 |
 | `artifact_ok` phase 4 back to its pre-fix form | 1 |
