@@ -186,7 +186,8 @@ blocked merge; all are fixed in place and covered by the behavior suite.
   phase that does not belong to its family and a model id that is not the one that phase's
   roster tier defines (read from the flight's own `models.env`, by key — never a literal),
   every dispatch is recorded, and a scenario asserts the exact eight-phase sequence. The same
-  mutant now fails 52 assertions.
+  mutant now fails loudly (see the fifth round's table for the counts, which are only
+  meaningful against a stated suite size).
 
 Known residuals, accepted at this round:
 
@@ -203,3 +204,65 @@ Known residuals, accepted at this round:
   cannot be closed from the outside; it is narrowed by pushing the reviewed object rather
   than the branch name, and the behavior suite asserts the invariant that survives either
   way — origin carries the reviewed commit, or nothing was published.
+
+## Amendments (2026-08-15 — fifth implementation review)
+
+A fifth independent review re-verified the fourth round: four findings fixed, two partially.
+One was a blocker of the same family as the one it replaced, and the other two were suite
+blind spots — the round's real subject was whether the behavior suite can carry the safety
+case it is being asked to carry.
+
+- **The Log is a Markdown section, and it is last.** The scoped predicate started at the Log
+  heading and scanned to end of file, so a canonical row under a later `## 7. …` still
+  authorized phase 9 — the same publication bypass, one heading further down. The scan now
+  ends at the next H1/H2; deeper headings (`###`) stay inside, so a phase may structure its
+  own entries. Because the scope now has an end, the Log being the testplan's **last** section
+  is load-bearing: the chapter's phase-2 instruction and the template's Log comment say so,
+  and phase 8 is told to append inside that section, never after a heading of its own.
+- **A wrong nonce is now rejected on its own evidence.** The suite's only preflight scenario
+  used a worker that answered wrongly *and produced nothing*, so the flight stopped on the
+  missing artifact even with the nonce check deleted — the ratified preflight property was
+  green for the wrong reason. A second seam makes the named model ids answer wrongly while
+  doing their canonical work; the attempt now stops for `preflight line missing or wrong` and
+  nothing else.
+- **The substitution ladder is exercised, not just declared.** The test actor accepted only
+  each tier's primary id, so a configured rung was rejected before it could work: no scenario
+  could show a fallback completing a phase, and a driver that tried its rungs *first* passed
+  unnoticed. The actor now accepts the primary or a rung of that tier's configured ladder,
+  refuses a rung that arrives before the primary, and a scenario drives the primary to
+  exhaustion and asserts the exact primary-then-rung dispatch order through a completed flight.
+- **Mutation counts are stated against a suite size.** The fourth round recorded a count taken
+  before two scenarios were added; measured again on the current suite it differs. Counts are
+  now recorded as a table with the suite size, and re-measured whenever scenarios change. The
+  publication mutant is named exactly (the push line, not the whole pre-fix block, which is a
+  different mutant), and the delayed-reset assertion is documented as race-dependent and
+  therefore not part of any exact count.
+
+Mutation evidence, all against the current suite (176 assertions, 0 failures unmutated).
+Each mutant is a single-line change to `bin/autopilot-driver.sh`, run against the unmodified
+suite:
+
+| Mutant | Failures |
+|---|---:|
+| `phase_harness` returns the producer harness for every phase | 56 |
+| `impl_green` back to a whole-file grep (fourth-round defect) | 6 |
+| the Log scan back to end-of-file (fifth-round defect) | 2 |
+| the preflight nonce check replaced by `:` | 6 |
+| the raw-file NUL rejection removed | 5 |
+| `artifact_ok` phase 8 back to its pre-fix form | 5 |
+| the reviewer ladder tried before the primary | 2 |
+| the push reverted to `git push -u origin "feature/<f>"` | 1 |
+| `artifact_ok` phase 4 back to its pre-fix form | 1 |
+| phase 2's canonical Log heading requirement removed | 1 |
+| the publication-time clean-tree recheck removed | 0 — declared gap |
+
+Known residuals, carried forward and added to:
+
+- A canonical GREEN row inside a fenced block *within* the Log section still counts.
+- A *direct* `-s 9` can still ride an earlier attempt's in-Log row (see the fourth round).
+- The window between the driver's last pre-push check and git's own refspec resolution.
+- The publication-time clean-tree recheck has no deterministic test: between phase 9's own
+  clean-tree check and the push, nothing in the driver writes to the tree, so dirtying it
+  requires concurrency — the same class as the refspec window. With `HEAD` pinned to the
+  accepted commit, a dirty tree cannot change *what* is published, only the honesty of the
+  report; the recheck stays as defence in depth, untested by construction.

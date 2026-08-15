@@ -106,7 +106,9 @@
 
 ## 6. Log (append-only)
 
-<!-- Each phase APPENDS here; never rewrite earlier entries. This is the feature's audit
+<!-- Each phase APPENDS here; never rewrite earlier entries, and keep this the file's LAST
+     section — the autopilot profile reads its Implementation row between this heading and the
+     next H1/H2. This is the feature's audit
      trail: the RED output the gate reads, the rejection notes the transcription answers.
      Role labels come from the ACTIVE chapter (pipeline: Designer / Test-Writer / Verifier;
      autopilot: its nine-phase role names — there, every phase logs here, verdicts included). -->

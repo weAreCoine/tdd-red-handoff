@@ -28,7 +28,8 @@ chk() { d=$1; shift; if "$@" >/dev/null 2>&1; then PASSED=$((PASSED+1)); echo "o
 chknot() { d=$1; shift; if "$@" >/dev/null 2>&1; then FAILED=$((FAILED+1)); echo "FAIL - $d"; else PASSED=$((PASSED+1)); echo "ok   - $d"; fi; }
 
 scrub_env() { unset AP_MAX_TRIES AP_MAX_EDGES AP_MAX_GATE_REJECTS AP_CLAUDE_ARGS AP_CODEX_ARGS \
-                    STUB_SCENARIO_DIR STUB_BAD_PREFLIGHT_PHASES STUB_GH_FAIL 2>/dev/null || true; }
+                    STUB_SCENARIO_DIR STUB_BAD_PREFLIGHT_PHASES STUB_BAD_NONCE_MODELS \
+                    STUB_GH_FAIL 2>/dev/null || true; }
 
 write_models_env() { # cwd = flight repo; $1 = optional extra lines
   {
@@ -102,6 +103,14 @@ seed_impl_green_outside_log() { # the same row, placed ABOVE the Log heading (R4
          print ""; d = 1
        } { print }' .ai/plans/demo.testplan.md > .ai/plans/demo.testplan.tmp \
     && mv .ai/plans/demo.testplan.tmp .ai/plans/demo.testplan.md
+}
+seed_impl_green_after_section() { # the row under a LATER H2 — outside the Log section
+  printf '\n## 7. Appendix\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_under_subheading() { # inside the Log, under a deeper heading
+  printf '\n### Rejection notes\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
 }
 seed_second_log_head() { # a duplicate Log heading: "the Log" stops being one place
   printf '\n## 6. Log (append-only)\n\n- a second Log section\n' >> .ai/plans/demo.testplan.md
@@ -831,6 +840,63 @@ AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
 run_driver
 chk 'NUL inside a routing token: STOPPED' st STOPPED
 chk 'NUL inside a routing token: strict grammar fired' log_has 'not the prescribed single-line JSON'
+
+echo '# R5-B1: the Log scope ends at the next H2, not at end of file'
+scrub_env; make_flight b1sect
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_section && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row under a later H2: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'GREEN row under a later H2: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight b1sub
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_under_subheading && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row under a deeper heading inside the Log: DONE' st DONE
+
+echo '# phase 2 must leave the canonical Log heading behind'
+scrub_env; make_flight nolog2
+SC=$BASE/sc-nolog2; mkdir -p "$SC"
+cat > "$SC/phase2" <<'EOF'
+{
+  printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
+  i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
+  printf '\n## Log\n\n- stub: inventory written, heading drifted from the template\n'
+} > "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo test inventory (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'testplan without the canonical Log heading: STOPPED' st STOPPED
+chk 'testplan without the canonical Log heading: backstop fired' log_has 'expected artifact/status'
+chknot 'testplan without the canonical Log heading: phase 2 never accepted' log_has 'phase 2 ok'
+
+echo '# R5-M1: a wrong nonce is rejected on its own, not via a missing artifact'
+scrub_env; make_flight badnonce
+STUB_BAD_NONCE_MODELS='rev-1'; export STUB_BAD_NONCE_MODELS
+run_driver
+chk 'wrong nonce with canonical work: STOPPED' st STOPPED
+chk 'wrong nonce with canonical work: rejected for the nonce itself' log_has 'preflight line missing or wrong'
+chknot 'wrong nonce with canonical work: the gate never counted as ok' log_has 'phase 3 ok'
+chk 'wrong nonce with canonical work: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# R5-M2: a configured ladder rung is valid, tried after the primary, and can complete'
+scrub_env; make_flight ladderok "AP_LADDER_REVIEW='rev-2'"
+STUB_BAD_NONCE_MODELS='rev-1'; AP_MAX_TRIES=2; export STUB_BAD_NONCE_MODELS AP_MAX_TRIES
+run_driver
+chk 'ladder rung completes the phase: DONE' st DONE
+chk 'ladder rung completes the phase: the rung is named in the journey' log_has 'next ladder rung'
+ladder_matrix_ok() { # primary exhausted twice, then the rung — for every reviewer phase
+  want=$(printf '%s\n' '2 codex flag-1' \
+                       '3 claude rev-1' '3 claude rev-1' '3 claude rev-2' \
+                       '4 codex cost-1' \
+                       '5 claude rev-1' '5 claude rev-1' '5 claude rev-2' \
+                       '6 codex flag-1' \
+                       '7 claude rev-1' '7 claude rev-1' '7 claude rev-2' \
+                       '8 codex mid-1' \
+                       '9 claude rev-1' '9 claude rev-1' '9 claude rev-2')
+  [ "$(cat "$G/.ai/autopilot/dispatches")" = "$want" ]
+}
+chk 'ladder rung completes the phase: exact primary-then-rung dispatch order' ladder_matrix_ok
 
 # ------------------------------------------------------------------- result --
 scrub_env

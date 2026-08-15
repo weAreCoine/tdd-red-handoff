@@ -291,14 +291,20 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
 # test_plan_template.md, required exactly once, and the rows below it.
 # Append-only (a re-run after a phase-9 reject adds another row), so the
 # predicate counts rows: at least one, never exactly one.
+# The scope is the Markdown SECTION, not the rest of the file: it starts after
+# the Log heading and ends at the next H1/H2 — a row under a later "## 7. …"
+# is outside the Log exactly like one in the inventory. Deeper headings (###)
+# stay inside, so a phase may structure its own entries.
 LOG_HEAD='^## 6\. Log \(append-only\)$'
+SECTION_END='^#\{1,2\}[[:space:]]'   # BRE: the next H1/H2 closes the section
 IMPL_ROW='^- \*\*Implementation:\*\* GREEN — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$'
 log_head_ok() { # exactly one canonical Log heading — zero or two is not a Log
   [ -f "$1" ] && [ "$(grep -cE "$LOG_HEAD" "$1")" -eq 1 ]
 }
-impl_green_count() { # canonical GREEN rows below the canonical Log heading
+impl_green_count() { # canonical GREEN rows inside the canonical Log section
   if log_head_ok "$1"; then
-    tail -n +"$(grep -nE "$LOG_HEAD" "$1" | cut -d: -f1)" "$1" | grep -cE "$IMPL_ROW"
+    tail -n +"$(( $(grep -nE "$LOG_HEAD" "$1" | cut -d: -f1) + 1 ))" "$1" \
+      | sed -n "/$SECTION_END/q;p" | grep -cE "$IMPL_ROW"
   else
     echo 0
   fi

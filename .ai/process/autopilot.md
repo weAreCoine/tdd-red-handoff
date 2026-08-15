@@ -209,8 +209,9 @@ launch the driver. Then go dormant.
 From the design record, produce `{feature}.testplan.md` from `test_plan_template.md`: the
 test-case inventory — one row per test with exact arrange / act / assert values, applying
 `CLAUDE.md § Test Philosophy`. Every decision the Test Writer would otherwise make must be
-written here. Keep the template's `## 6. Log (append-only)` heading verbatim and exactly once —
-every later phase appends under it, and the flight reads it there. Set `Status: DRAFT`, append
+written here. Keep the template's `## 6. Log (append-only)` heading verbatim, exactly once, and
+**last** — every later phase appends under it, and the flight reads that section as running from
+the heading to the next H1/H2, so a section added after it would put those entries outside. Set `Status: DRAFT`, append
 the Log entry, commit. On re-entry after a
 rejection, answer the reviewer's notes point by point in the Log.
 
@@ -257,7 +258,8 @@ route `plan`.
 Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the gated tests
 green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
 canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
-under the testplan's `## 6. Log (append-only)` heading — nowhere else in the file — and commit
+under the testplan's `## 6. Log (append-only)` heading, its last section — nowhere else in the
+file, and never after a heading of its own — and commit
 it with the code: that row, in that section, is the durable proof of implementation that
 entering phase 9 requires, and a new one is required on every phase-8 run. A plan that cannot
 be implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log —
