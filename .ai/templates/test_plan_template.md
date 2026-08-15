@@ -109,8 +109,13 @@
 <!-- Each phase APPENDS here; never rewrite earlier entries, and keep this the file's LAST
      section — the autopilot profile reads its Implementation row from this heading to the end of
      the file, and refuses a testplan that has any section after it. Paste command output inside a
-     fenced block: raw output carries ruler lines that Markdown reads as a heading. This is the
-     feature's audit
+     fenced block: raw output carries ruler lines that Markdown reads as a heading. Under autopilot
+     the reader is bounded and refuses what it does not model — a line starting with '<' (raw HTML;
+     these comments are fine), a fence or comment left open, a second Log heading — and the
+     Implementer's GREEN row must be the file's LAST non-blank line until the final review has
+     read it — the implementation phase writes its notes before the row, never after
+     (§ Repairing a refused Log, in that chapter, is the repair for all of these).
+     This is the feature's audit
      trail: the RED output the gate reads, the rejection notes the transcription answers.
      Role labels come from the ACTIVE chapter (pipeline: Designer / Test-Writer / Verifier;
      autopilot: its nine-phase role names — there, every phase logs here, verdicts included). -->

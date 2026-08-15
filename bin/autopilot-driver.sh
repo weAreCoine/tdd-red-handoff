@@ -290,86 +290,170 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
 # phase 9. Append-only (a re-run after a phase-9 reject adds another row), so
 # the predicate counts rows: at least one, never exactly one.
 #
-# The Log is NORMATIVE-LAST (autopilot.md, phase 2), and that is what makes its
-# scope decidable. Earlier rounds tried to find where the section ENDS — first
-# end-of-file, then "the next column-zero H1/H2" — and every heading form the
-# predicate did not know (0-3-space ATX, Setext) became another way to sit
-# outside the Log while counting as inside it. So the direction is inverted:
-# the reader does not look for the end, it REFUSES an artifact that has
-# anything after the Log. Missing a boundary would be a bypass; seeing one that
-# is not there is a stop the operator can read and fix.
+# TWO CONDITIONS, and the first one is structural — four review rounds showed
+# that "recognize the row" alone is not decidable in Markdown:
 #
-# Fenced blocks are opaque: inside ``` or ~~~ nothing counts — not a heading,
-# not a GREEN row. That is why phase 4 fences the RED output it pastes here
-# (autopilot.md, phase 4): real test output carries ruler lines ("------")
-# that Markdown reads as a Setext heading, and unfenced they would make an
-# honest testplan malformed.
+#   1. POSITION. The row must be the file's LAST non-blank line. Phase 8 is
+#      the last phase that writes before phase 9 reads, so the contract can
+#      demand it (autopilot.md phase 8, the phase-8 prompt, the template).
+#      A canonical row that IS the last line cannot be inert text: every
+#      construct that could hide it — an HTML comment, a fenced block — has
+#      to be closed after it, and a closer is itself a line, so the row would
+#      not be last. This is the condition that does not depend on how much
+#      Markdown the reader below knows.
+#   2. SHAPE. Exactly one canonical Log heading, no section after it, and no
+#      container left open at end of file. This is what makes "last line"
+#      mean what it says, and it is what phases 2, 4 and 8 check on their own
+#      output, before any row exists.
+#
+# The Log is NORMATIVE-LAST (autopilot.md, phase 2), and that is what makes
+# its scope decidable. Earlier rounds tried to find where the section ENDS —
+# first end-of-file, then "the next column-zero H1/H2" — and every heading
+# form the predicate did not know (0-3-space ATX, Setext) became another way
+# to sit outside the Log while counting as inside it. So the direction is
+# inverted: the reader does not look for the end, it REFUSES an artifact that
+# has anything after the Log. Missing a boundary would be a bypass; seeing
+# one that is not there is a stop the operator can read and fix.
+#
+# WHAT THE READER MODELS — exactly this list. It is a bounded reader, not a
+# Markdown parser, and what is not on the list is refused, never guessed:
+#
+#   - fenced blocks (``` / ~~~, 0-3 space indent): opaque — inside one,
+#     nothing counts: no heading, no row, no comment. Closed only by
+#     CommonMark's rule — same character, at least as long as the opener,
+#     nothing but whitespace after it. A ``` line inside a ```` block, or a
+#     closer carrying an info string, does NOT close: those are the exact
+#     bytes that made an inert, fenced row count in the seventh review.
+#   - HTML comments (<!-- … -->, ending at the first line containing -->):
+#     opaque the same way. Modelled, not refused, because the shipped
+#     template's own Log legitimately carries them.
+#   - ATX headings (0-3 space indent, at most six #) and Setext underlines:
+#     H1/H2 bound sections, deeper ones do not, so a phase may still
+#     structure its own Log entries.
+#
+# REFUSED rather than modelled: any other line that starts with '<' (a raw
+# HTML block — <div>, <script>, <![CDATA[ — would make the row inert), and a
+# fenced block or comment still open at end of file (the file's structure is
+# then undecidable). Condition 1 covers everything else: whatever construct a
+# future reviewer invents, it has to be written after the row to hide it.
+#
+# That is also why phase 4 fences the RED output it pastes here (autopilot.md,
+# phase 4): real test output carries ruler lines ("------") that Markdown
+# reads as a Setext heading, and unfenced they would make an honest testplan
+# malformed.
 #
 # One awk pass, and the canonical strings live in exactly one place. awk is
 # POSIX, like the sed/grep the rest of the driver uses.
 LOG_AWK='
-BEGIN { fence = ""; head = 0; dup = 0; tail = 0; green = 0; para = 0 }
+function runlen(s, ch,   n) { n = 0; while (substr(s, n + 1, 1) == ch) n++; return n }
+function blank(s) { return s ~ /^[ \t]*$/ }
+BEGIN {
+  GRX = "^- \\*\\*Implementation:\\*\\* GREEN — [0-9][0-9][0-9][0-9]-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]), full suite \\+ typecheck \\(Implementer\\)$"
+  fence = ""; flen = 0; comment = 0; html = 0
+  head = 0; dup = 0; tail = 0; green = 0; para = 0; lastnb = ""
+  openline = 0; htmlline = 0; dupline = 0; tailline = 0   # where a refusal starts
+}
 {
   line = $0
+  if (!blank(line)) lastnb = line
   match(line, /^ */); ind = RLENGTH; body = substr(line, ind + 1)
-  # fences: 0-3 space indent, closed by the same character
-  if (ind <= 3 && (substr(body, 1, 3) == "```" || substr(body, 1, 3) == "~~~")) {
-    ch = substr(body, 1, 1)
-    if (fence == "") fence = ch; else if (fence == ch) fence = ""
+  # opaque containers first: inside one, nothing counts
+  if (comment) { if (index(line, "-->") > 0) comment = 0; para = 0; next }
+  if (fence != "") {
+    if (ind <= 3 && substr(body, 1, 1) == fence) {
+      n = runlen(body, fence)
+      if (n >= flen && blank(substr(body, n + 1))) { fence = ""; flen = 0 }
+    }
     para = 0; next
   }
-  if (fence != "") { para = 0; next }
-  # ATX heading, 0-3 space indent. H1/H2 bound sections; deeper ones do not, so
-  # a phase may still structure its own Log entries.
+  ch = substr(body, 1, 1)
+  if (ind <= 3 && (ch == "`" || ch == "~")) {
+    n = runlen(body, ch)
+    # a backtick fence may not carry a backtick in its info string
+    if (n >= 3 && !(ch == "`" && index(substr(body, n + 1), "`") > 0)) {
+      fence = ch; flen = n; openline = NR; para = 0; next
+    }
+  }
+  if (ind <= 3 && substr(body, 1, 4) == "<!--") {
+    if (index(body, "-->") == 0) { comment = 1; openline = NR }
+    para = 0; next
+  }
+  if (ind <= 3 && ch == "<") { if (!htmlline) htmlline = NR; html = 1; para = 0; next }
+  # ATX heading, 0-3 space indent, at most six #. H1/H2 bound sections;
+  # deeper ones do not, so a phase may still structure its own Log entries.
   hn = 0
   if (ind <= 3) {
     h = body
     while (substr(h, 1, 1) == "#") { hn++; h = substr(h, 2) }
+    if (hn > 6) hn = 0
     if (hn > 0 && h != "" && substr(h, 1, 1) != " " && substr(h, 1, 1) != "\t") hn = 0
   }
   if (hn > 0) {
     if (hn <= 2) {
-      if (line == "## 6. Log (append-only)") { head++; if (head > 1) dup = 1 }
-      else if (head > 0) tail = 1
+      if (line == "## 6. Log (append-only)") { head++; if (head > 1) { if (!dupline) dupline = NR; dup = 1 } }
+      else if (head > 0) { if (!tailline) tailline = NR; tail = 1 }
     }
     para = 0; next
   }
   # Setext underline: a heading only under a paragraph line — a ruler under a
   # list item or a blank line is a thematic break, not a section boundary.
   if (ind <= 3 && para && (body ~ /^-+[ \t]*$/ || body ~ /^=+[ \t]*$/)) {
-    if (head > 0) tail = 1
+    if (head > 0) { if (!tailline) tailline = NR; tail = 1 }
     para = 0; next
   }
-  if (head > 0 && line ~ /^- \*\*Implementation:\*\* GREEN — [0-9][0-9][0-9][0-9]-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$/) green++
+  if (head > 0 && line ~ GRX) green++
   if (body == "" || body ~ /^([-*+]|[0-9]+[.)])([ \t]|$)/ || substr(body, 1, 1) == ">") para = 0
   else para = 1
 }
 END {
-  shape = "ok"
-  if (head == 0) shape = "nohead"; else if (dup) shape = "dup"; else if (tail) shape = "tail"
-  printf "%s %d\n", shape, green
+  shape = "ok"; bad = 0
+  if (html) { shape = "html"; bad = htmlline }
+  else if (comment) { shape = "opencomment"; bad = openline }
+  else if (fence != "") { shape = "openfence"; bad = openline }
+  else if (head == 0) shape = "nohead"
+  else if (dup) { shape = "dup"; bad = dupline }
+  else if (tail) { shape = "tail"; bad = tailline }
+  printf "%s %d %d %d\n", shape, green, (lastnb ~ GRX) ? 1 : 0, bad
 }'
-log_scan() { # $1 = file -> LOG_SHAPE, LOG_GREEN; 1 when there is no file to read
-  LOG_SHAPE=missing; LOG_GREEN=0
+log_scan() { # $1 = file -> LOG_SHAPE, LOG_GREEN, LOG_LAST, LOG_LINE (0 = no line
+             # to point at); 1 when there is no file to read
+  LOG_SHAPE=missing; LOG_GREEN=0; LOG_LAST=0; LOG_LINE=0
   [ -f "$1" ] || return 1
   scan=$(awk "$LOG_AWK" "$1") || return 1
-  LOG_SHAPE=${scan% *}; LOG_GREEN=${scan#* }
+  LOG_SHAPE=${scan%% *}; scan=${scan#* }
+  LOG_GREEN=${scan%% *}; scan=${scan#* }
+  LOG_LAST=${scan%% *}; LOG_LINE=${scan##* }
 }
 log_shape_ok() { log_scan "$1" && [ "$LOG_SHAPE" = ok ]; }
-log_shape_why() { # the refusal in the operator's words — never "the row is missing"
+log_shape_why() { # the refusal in the operator's words, pointing at the line that
+                  # starts it — never "the row is missing"
   log_scan "$1"
+  at=''; [ "${LOG_LINE:-0}" -gt 0 ] && at=" (line $LOG_LINE)"
   case $LOG_SHAPE in
     ok)      echo '' ;;
     missing) echo "$1 is missing" ;;
     nohead)  echo "no canonical '## 6. Log (append-only)' heading (exactly one is required)" ;;
-    dup)     echo "more than one canonical Log heading — 'the Log' must be one place" ;;
-    tail)    echo "a section starts after the Log — it must be the file's last section (fence pasted output)" ;;
+    dup)     echo "more than one canonical Log heading — 'the Log' must be one place$at" ;;
+    tail)    echo "a section starts after the Log — it must be the file's last section (fence pasted output)$at" ;;
+    html)    echo "a line starts with '<' — raw HTML is refused, never interpreted: fence it or reword it$at" ;;
+    opencomment) echo "an HTML comment is opened and never closed (no '-->') — the file's structure is undecidable$at" ;;
+    openfence)   echo "a fenced block is opened and never closed — a closing fence repeats the opening characters, at least as long, alone on its line$at" ;;
   esac
 }
 impl_green_count() { # canonical GREEN rows on the Log of a well-shaped testplan
   if log_shape_ok "$1"; then echo "$LOG_GREEN"; else echo 0; fi
 }
-impl_green() { [ "$(impl_green_count "$1")" -ge 1 ]; }
+impl_green() { # the phase-9 authorization: a canonical row on the Log AND the
+               # file's last non-blank line is one (condition 1 above)
+  log_shape_ok "$1" && [ "$LOG_GREEN" -ge 1 ] && [ "$LOG_LAST" -eq 1 ]
+}
+impl_green_why() { # assumes impl_green just failed on a well-shaped file
+  if [ "$LOG_GREEN" -ge 1 ]; then
+    echo "the Implementation GREEN row is not the testplan's last non-blank line — phase 8's proof is only a proof where nothing can be written after it (repair: autopilot.md § Repairing a refused Log)"
+  else
+    echo "no Implementation GREEN row on the testplan's canonical Log — phase 8 has not completed on this testplan"
+  fi
+}
 
 # --- phase metadata ----------------------------------------------------------
 phase_role() {
@@ -426,15 +510,15 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
               && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
          REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row"
        elif ! log_shape_ok "$TESTPLAN"; then
-         REASON="the testplan Log is malformed, so phase 8 could not leave its proof there: $(log_shape_why "$TESTPLAN")"
+         REASON="the testplan Log is malformed, so phase 8 could not leave its proof there: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
        fi ;;
     9) if ! { adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
               && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
          REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED + gated RED plan"
        elif ! log_shape_ok "$TESTPLAN"; then
-         REASON="the testplan Log is malformed, so no row in it proves anything: $(log_shape_why "$TESTPLAN")"
+         REASON="the testplan Log is malformed, so no row in it proves anything: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
        elif ! impl_green "$TESTPLAN"; then
-         REASON="no Implementation GREEN row on the testplan's canonical Log — phase 8 has not completed on this testplan"
+         REASON=$(impl_green_why)
        fi ;;
   esac
   [ -z "$REASON" ]
@@ -467,7 +551,8 @@ artifact_ok() { # $1 = phase, $2 = route
          nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
            && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
            && log_shape_ok "$TESTPLAN" && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
-       else [ "$(impl_green_count "$TESTPLAN")" -gt "$ENTRY_GREEN" ]; fi ;;
+       else # the phase left a NEW row, and left it where it proves something
+            [ "$(impl_green_count "$TESTPLAN")" -gt "$ENTRY_GREEN" ] && impl_green "$TESTPLAN"; fi ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
        else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
   esac
@@ -484,7 +569,7 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", which is the file'"'"'s last section: nowhere else, never under a heading of your own, never inside a fenced block — and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", which is the file'"'"'s last section: nowhere else, never under a heading of your own, never inside a fenced block or an HTML comment — and write it as the FILE'"'"'S LAST NON-BLANK LINE: anything else you log for this phase goes before it, nothing at all after it (a row nothing follows cannot be inert text — that is what makes it a proof). Then commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
     9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }

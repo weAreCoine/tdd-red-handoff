@@ -73,6 +73,15 @@ bin/verify-kit.sh   # kit-repo mode: markers survive, chapters verbatim (no mark
                     # plugin manifest sane (version pinned, self-marketplace, commands present)
 ```
 
+The autopilot driver has a second, behavioral test surface — disposable git repositories and
+stub harnesses, no network, no real model:
+
+```bash
+sh tests/driver/run.sh          # the driver's behavior suite (scenarios; ~1 min)
+sh tests/driver/mutants.sh -j 4 # the mutation table behind ADR-0008 (one exact sed program
+                                # per mutant; re-measure after adding or changing scenarios)
+```
+
 Three states — PASS / FAIL / NOT CHECKED — and a non-zero exit on any FAIL. What it cannot decide
 mechanically (README mirror fidelity, correct *use* of the shared vocabularies) it lists instead
 of omitting: for those, walk the couplings list above for whichever file changed. In target mode

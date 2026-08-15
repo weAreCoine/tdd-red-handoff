@@ -121,7 +121,7 @@ When the previous-generation model is retired, update the ladder via `/update-mo
 | Gate 5 outcome | `APPROVED`/`REJECTED(n)` | Exactly pipeline's gate. |
 | Gate 7 outcome | `Gate: APPROVED` on the plan | Uniform reading across profiles: "the approval that authorizes implementation". Who stamped it is in the Log. |
 | Gate 9 outcome | `DONE` on the plan | The plan's own two-value status, already stamped by the review phase in both existing chapters. |
-| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). The Log is the testplan's last section and the driver refuses one with any section after it, so the row's scope is decidable; fenced text is opaque, which is why pasted output is fenced and the row never is (sixth review). |
+| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log, as the file's last non-blank line — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). Two conditions: position (last non-blank line — a row nothing follows cannot be inert) and shape (one Log heading, no section after it, no container left open). The reader models fences and HTML comments as opaque and refuses what it does not model — raw HTML, unclosed containers — instead of guessing (seventh review). |
 | Flight state | `.ai/autopilot/{feature}/`, gitignored | Verdict JSONs, counters, preflight nonces, event logs, `report.md`. Operational, not an interface between roles: the durable record is in the artifacts. |
 
 **Backward compatibility** is by addition: a plan without a `Gate` row comes from a profile
@@ -155,6 +155,9 @@ body, never created.
   preamble contract, roster/substitution reading as in the other chapters.
 - `bin/` — the driver (dispatch, counters, preflight, git/tracker ribbon; the event-log
   scan was dropped at build time — ADR-0008 § Amendments).
+- `tests/driver/` — the driver's behavior suite (`run.sh`: disposable repos, stub harnesses)
+  and `mutants.sh`, the mutation harness whose rows are exact sed programs (ADR-0008 § the
+  behavior suite as a safety case).
 - `commands/` — `init-architecture`, `switch-profile`, `show-profile`, `verify-kit` learn
   the third triad value; new command to open phase 1 (name to be chosen).
 - `.ai/templates/` — `plan_template.md` and `AGENTS.template.md`: "pipeline-only" wording
@@ -176,4 +179,10 @@ body, never created.
   installs; ADR-0008 § Amendments).
 - The driver's event-stream scan, dropped in text mode: revisit with `--json` /
   `--output-schema` when it pays.
+- **False refusals from the positional proof** (seventh review): a real Implementer that appends
+  the GREEN row and then a trailing note fails its attempt, burns its tries and its ladder, and
+  stops the flight — as does a testplan committed without a trailing newline, where `>>` splices
+  the row onto the previous line and the canonical regex misses it. Both fail closed, and the
+  stubs cannot show either: watch the first real flights, and if it bites, the answer is a
+  friendlier phase-8 prompt, not a looser predicate.
 - ~~Name of the phase-1 launch command~~: resolved — `/fly`.

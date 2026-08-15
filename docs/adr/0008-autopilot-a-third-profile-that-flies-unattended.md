@@ -239,7 +239,8 @@ case it is being asked to carry.
   therefore not part of any exact count.
 
 Mutation evidence for that round was taken against a 177-assertion suite; the sixth round
-re-measured the whole table on the suite as it stands. The current numbers are below.
+re-measured the whole table on the suite as it stands. Both are superseded by the seventh
+round's table below, which is produced by a harness rather than by hand.
 
 ## Amendments (2026-08-15 — sixth implementation review)
 
@@ -293,56 +294,159 @@ was never checked by anything.
   while the phase is the one running, and a scenario drives a phase-5 bounce back through
   phases 2 and 3 and asserts the whole 18-dispatch sequence across the bounce.
 
+## Amendments (2026-08-15 — seventh implementation review)
+
+A seventh independent review confirmed every sixth-round fix (routing destinations, the
+inclusive edge cap, `flight.env` parsing, the artifact floors, the lock, the report, the
+publication-time clean-tree recheck, the actor's ladder scope) and reproduced the round-6
+blocker in three new forms: the canonical GREEN row inside an HTML comment, inside a four-
+backtick fence that a three-backtick line appeared to close, and under a closing fence carrying
+an info string. CommonMark renders all three as hidden or code text; all three reached `DONE`
+and pushed a branch. Fourth round, same family — the completion proof was recognized by
+*reading Markdown*, and each round the reader met a construct it did not model.
+
+- **The proof is positional first, and read second.** Phase 8 is the last phase that writes
+  before phase 9 reads, so the contract can demand *where* the row goes: the canonical row must
+  be the testplan's **last non-blank line**. A row nothing follows cannot be inert text — every
+  construct that could hide it has to be closed after it, and a closer is itself a line, so the
+  row would not be last. This condition does not depend on how much Markdown the reader knows,
+  and it is what ends the family: all three published fixtures fail it without modelling
+  anything. It is stated in the chapter's phase 8, in the phase-8 prompt and in the template,
+  and it is enforced at both ends — phase 9's entry precondition, and phase 8's own artifact
+  backstop, so a phase that writes past its proof fails its attempt instead of handing phase 9
+  an artifact that cannot authorize it.
+- **The reader is bounded, and says so.** It models exactly two opaque containers — fenced
+  blocks (closed only by CommonMark's rule: same character, at least as long as the opener,
+  nothing but whitespace after) and HTML comments (`<!-- … -->`, modelled rather than refused
+  because the shipped template's own Log carries them) — plus ATX headings (0-3 space indent,
+  at most six `#`) and Setext underlines as section bounds. Everything else that could hide
+  text is **refused**: a line starting with `<` (raw HTML), and a fence or comment left open at
+  end of file. The refusal names the shape. The residual is stated instead of denied: a
+  construct outside that enumeration is refused, never silently counted, and the positional
+  condition covers what the enumeration does not.
+- **A refused Log has a documented repair, and no migration mode.** The contract change refuses
+  an old testplan whose phase-4 output was pasted unfenced (real `unittest` output carries a
+  `======` ruler, which Markdown reads as a heading). The population that would need converting
+  is empty — the autopilot profile has never shipped: it exists only on this branch, so no
+  target holds an artifact written under the old rule. Building a versioned migration mode for
+  zero artifacts is the abstraction YAGNI names; what was missing is the operator's repair path,
+  and that is now written down (`autopilot.md § Repairing a refused Log`, which the driver's own
+  refusal names): fence the pasted bytes where they are, changing none of them, record the
+  repair in the **commit message** rather than in a new Log entry (which would be written past
+  the proof), relaunch at the phase the stop named. The refusal itself now points at the line
+  where the problem starts and names the repair section, so the stop is a work order rather
+  than a diagnosis. A behavior scenario walks it end to end — refused, repaired, `DONE`,
+  with the RED evidence still in the file verbatim.
+- **The per-commit audit grammar and the retry's workspace are now part of the safety case.**
+  Two one-line survivors of the round-6 suite: replacing the semantic-prefix ERE with `.*`, and
+  replacing the failed attempt's `git clean -fd` with `:`. Both were live contract text that no
+  assertion pinned. A scenario now commits an otherwise-valid artifact under a non-semantic
+  prefix and asserts the stop **names the offending commit by sha**, and another leaves an
+  untracked file behind on a failed attempt and asserts the retry starts from a clean tree.
+  They are a seventh safety property, not a footnote: the six-property partition did not cover
+  them, which is why they survived.
+- **The mutation table is reproducible or it is not evidence.** Four rows of the round-6 table
+  could not be reproduced: their counts depended on which line the reader picked, and prose
+  names like "the lock never released" do not pick one. The mutants now live in
+  `tests/driver/mutants.sh` — id, file, **the exact sed program**, property — and the harness
+  copies the whole tracked working tree per mutant, applies the edit, and reports observed
+  failures. It fails loudly instead of quietly: a sed program that no longer matches (the file
+  moved under it) reads `did-not-apply`, a mutant that stops parsing reads `does-not-parse`, an
+  incomplete tree copy reads `copy-failed`, and a row with no measurement at all is printed as
+  `NOT RUN` rather than dropped — the first run of this round silently lost three rows to a
+  failed copy, which is the same defect class as an unreproducible count. The table below is
+  that script's output; reproducing a row is running `sh tests/driver/mutants.sh <id>`.
+
 ### What the behavior suite is a safety case for
 
-Mutation testing over a 650-line script does not converge: a survivor exists for every line no
+Mutation testing over a 780-line script does not converge: a survivor exists for every line no
 assertion pins, so each round can produce a fresh table indefinitely. The suite is therefore
-declared complete against **six safety properties**, each of which must carry at least one
+declared complete against **seven safety properties**, each of which must carry at least one
 mutation-killing assertion: publication integrity, entry preconditions, caps and routing,
-terminal state and lock, configuration fail-fast, and report honesty. Survivors outside those
-six are recorded here as known-unprotected lines, not as open findings.
+terminal state and lock, configuration fail-fast, report honesty, and — added in the seventh
+round — audit grammar and workspace hygiene (every commit of a phase carries the semantic
+prefix and the tracker reference; a failed attempt leaves nothing behind for the retry).
+Survivors outside those seven are recorded here as known-unprotected lines, not as open
+findings.
 
-Mutation evidence, all against the current suite — **247 assertions**, 0 failures unmutated.
-Each mutant is a single change to `bin/autopilot-driver.sh` (the last row mutates the test
-actor instead), run against the unmodified suite in a full copy of the tracked tree (a partial
-copy of `bin/` + `tests/` alone breaks the scenario that reads `.ai/templates/`, and every
-mutant then appears to gain one detection it has not earned):
+One property named by the seventh review is deliberately **outside** this partition: artifact
+inertness across `/switch-profile`. It is a kit-level rule carried by the chapters and by
+`/switch-profile`'s refusal to move a testplan in flight, not by the driver — the driver never
+reads a foreign-profile artifact, because a flight requires a fresh feature name. `verify-kit`
+does not check it either, and no mutant here can. It belongs to the kit's own review surface.
 
-| Mutant | Property | Failures |
+Mutation evidence, all against the current suite — **301 assertions**, 0 failures unmutated
+— produced by `tests/driver/mutants.sh` (one exact sed program per row; the last row mutates
+the test actor instead of the driver):
+
+| Mutant (`tests/driver/mutants.sh` id) | Property | Failures |
 |---|---|---:|
-| `phase_harness` returns the producer harness for every phase | entry/dispatch | 80 |
-| the Log scan back to end-of-file (fifth-round defect) | publication | 12 |
-| the preflight nonce check replaced by `:` | entry | 7 |
-| `flight.env` no longer validated | config fail-fast | 6 |
-| the raw-file NUL rejection removed | entry | 5 |
-| Setext headings no longer close the Log (sixth-round defect) | publication | 5 |
-| `route_phase` sends `plan` to phase 2 instead of 6 | routing | 5 |
-| `impl_green` back to a whole-file grep (fourth-round defect) | publication | 4 |
-| `nontrivial` degraded to an existence check | entry | 4 |
-| phase 2's canonical Log shape requirement removed | publication | 4 |
-| the publication-time clean-tree recheck removed | publication | 4 |
-| a failed lock acquisition ignored | terminal state/lock | 4 |
-| the journey dropped from the report | report honesty | 4 |
-| indented ATX headings no longer close the Log | publication | 3 |
-| fenced blocks read as Markdown (headings and rows count) | publication | 3 |
-| the reviewer ladder tried before the primary | entry | 3 |
-| the lock never released | terminal state/lock | 3 |
-| the report counters forced to zero | report honesty | 3 |
-| `artifact_ok` phase 8 back to its pre-fix form | publication | 2 |
-| the edge cap refuses edge N instead of N+1 | caps | 2 |
-| phase 3's `adr_ok` entry requirement removed | entry | 2 |
-| phase 7's `adr_ok` entry requirement removed | entry | 2 |
-| phase 8's entry Log-shape check removed | entry | 2 |
-| the test actor's ladder order scoped to the flight | *(test harness)* | 2 |
-| the push reverted to `git push -u origin "feature/<f>"` | publication | 1 |
-| `artifact_ok` phase 4 back to its pre-fix form | publication | 1 |
-| the last verdict dropped from the report | report honesty | 1 |
-| the `RUNNING` → `STOPPED` conversion on an abnormal exit | terminal state | 0 — declared gap |
+| `harness-one-family` | entry/dispatch | 84 |
+| `log-tail-ignored` | publication | 20 |
+| `log-tail-setext` | publication | 13 |
+| `log-tail-atx` | publication | 7 |
+| `log-last-line` | publication | 7 |
+| `nonce-check` | entry | 7 |
+| `flightenv-unvalidated` | config fail-fast | 6 |
+| `nul-rejection` | entry | 5 |
+| `route-plan-to-2` | routing | 5 |
+| `lock-release` | terminal state/lock | 5 |
+| `report-journey` | report honesty | 5 |
+| `log-fence-transparent` | publication | 4 |
+| `log-html-allowed` | publication | 4 |
+| `phase2-log-shape` | publication | 4 |
+| `publication-clean-tree` | publication | 4 |
+| `nontrivial-existence` | entry | 4 |
+| `lock-acquire` | terminal state/lock | 4 |
+| `commit-prefix-grammar` | audit/hygiene | 4 |
+| `log-fence-length` | publication | 3 |
+| `log-fence-infostring` | publication | 3 |
+| `log-atx-max-six` | publication | 3 |
+| `artifact8-no-new-row` | publication | 3 |
+| `ladder-before-primary` | entry | 3 |
+| `log-indented-atx` | publication | 2 |
+| `log-comment-not-opaque` | publication | 2 |
+| `entry3-adr` | entry | 2 |
+| `entry7-adr` | entry | 2 |
+| `entry8-log-shape` | entry | 2 |
+| `edge-cap-off-by-one` | caps | 2 |
+| `retry-clean` | audit/hygiene | 2 |
+| `report-counters` | report honesty | 2 |
+| `artifact4-prefix` | publication | 1 |
+| `artifact8-prefix` | publication | 1 |
+| `artifact8-position` | publication | 1 |
+| `push-by-name` | publication | 1 |
+| `report-verdict` | report honesty | 1 |
+| `green-whole-file` | publication | 0 — survivor |
+| `cleanup-arm` | terminal state/lock | 0 — survivor |
+| `actor-ladder-scope` | (test harness) | 0 — survivor |
+
+Three mutants survive, and each is a statement, not an omission:
+
+- **`green-whole-file`** — dropping `head > 0 &&` from the row count. It admits nothing: the
+  count feeds only `-eq` (blocked branches) and `-gt` (phase 8 proceed), both of which shift by
+  the same offset, and the proceed side still demands the row be the file's last non-blank
+  line, which a row above the Log heading can never be. The mutant is strictly *more* refusing
+  than the current code, so no assertion can catch it without asserting an acceptance no
+  scenario needs. The guard stays because "a row outside the Log is not a proof" is contract
+  text (fourth round), not because a test defends it.
+- **`cleanup-arm`** — the `RUNNING` → `STOPPED` conversion on an abnormal exit: the declared gap
+  below, unchanged.
+- **`actor-ladder-scope`** — the test actor's per-invocation ladder ordering. The sixth round
+  recorded 2 failures for it; the harness measures 0, and the reason is structural rather than a
+  regression: a producer dispatch always separates two reviewer dispatches, so the unscoped
+  `PREV` is never a model in the running phase's allowed list and the rank check never fires.
+  It is a **harness** invariant — it exists to keep a legitimate re-entry from being read as a
+  rank decrease (a false failure), not to catch a driver defect — and no current scenario
+  distinguishes it. Recorded here rather than renumbered silently.
 
 Known residuals and declared gaps:
 
 - A *direct* `-s 9` can still ride an earlier attempt's in-Log row (see the fourth round).
 - The window between the driver's last pre-push check and git's own refspec resolution.
+- The Log reader is bounded by enumeration (above): a Markdown construct it does not model is
+  refused, not read — the failure mode is a stopped flight the operator can fix, never a
+  counted row. The positional condition is what stands behind that boundary.
 - `cleanup`'s `RUNNING` → `STOPPED` arm has no faithful injection: an untrapped fatal signal
   terminates the shell **without** running the EXIT trap, and every in-driver exit path after
   `RUNNING` is written goes through `stop_flight`, which writes its own terminal status. So the

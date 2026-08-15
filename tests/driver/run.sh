@@ -128,6 +128,65 @@ seed_impl_green_fenced() { # the row inside a fenced block: text, not a claim
   printf '\n```\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n```\n' \
     >> .ai/plans/demo.testplan.md
 }
+seed_impl_green_in_comment() { # the row inside an HTML comment: hidden text, not a claim
+  printf '\n<!--\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n-->\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_in_long_fence() { # a ``` line does not close a ```` block: the row stays code
+  printf '\n````\n```\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n````\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_infostring_close() { # a closing fence carries no info string: the row stays code
+  printf '\n```\n``` not-a-valid-closing-fence\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n```\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_open_comment() { # a comment never closed: the row IS the last line, and inert
+  printf '\n<!--\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_open_fence() { # a fence never closed: same trick, other container
+  printf '\n```\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_long_fence_open() { # a ``` line does not close a ```` block: the fence runs on
+  printf '\n````\n```\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_infostring_open() { # a closer carrying an info string does not close either
+  printf '\n```\n``` not-a-valid-closing-fence\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_after_deep_atx() { # seven # is a paragraph, so the ruler under it IS a heading
+  printf '\n####### not a heading\n========\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_raw_html() { # a raw HTML block start: refused, never interpreted
+  printf '\n<div>\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_note_after_impl_green() { # an entry appended AFTER the proof: the position condition
+  seed_impl_green
+  printf -- '- 2026-08-15 · Final Reviewer — a note written past the proof\n' \
+    >> .ai/plans/demo.testplan.md
+}
+seed_log_comment_then_green() { # the shipped template's own shape: a comment inside the Log
+  printf '\n<!-- If a phase ran under a tier substitution, append it to that phase entry. -->\n' \
+    >> .ai/plans/demo.testplan.md
+  seed_impl_green
+}
+seed_log_unfenced_output() { # a pre-contract Log: phase-4 output pasted without a fence
+  printf '\n- 2026-08-14 · Test Writer — Status: RED. 12 tests written, all failing. Output:\n\nRan 12 tests in 0.42s\n======================================================================\nFAILED (failures=12)\n' \
+    >> .ai/plans/demo.testplan.md
+}
+repair_log_fence_output() { # the documented repair: fence the pasted bytes, changing none of them
+  awk '
+    /^Ran 12 tests in 0\.42s$/ && !o { print "```"; o = 1 }
+    { print }
+    /^FAILED \(failures=12\)$/ && o == 1 { print "```"; o = 2 }
+  ' .ai/plans/demo.testplan.md > .ai/plans/demo.testplan.tmp \
+    && mv .ai/plans/demo.testplan.tmp .ai/plans/demo.testplan.md
+  git add -A && git commit -qm 'docs: demo — fence the phase-4 output in the Log, bytes unchanged (TEST-1)'
+}
 seed_tiny_testplan() { # non-empty but below the artifact floor
   printf '# Test plan — demo\n\n> **Status:** %s\n' "$1" > .ai/plans/demo.testplan.md
 }
@@ -827,6 +886,19 @@ run_driver -s 4
 chk 'blocked phase 4 that moved the status: STOPPED' st STOPPED
 chk 'blocked phase 4 that moved the status: backstop fired' log_has 'expected artifact/status'
 
+scrub_env; make_flight m1p4green
+SC=$BASE/sc-m1p4green; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo transcription blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"testplan","notes":"ambiguous inventory row"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 4
+chk 'blocked phase 4 claiming GREEN: STOPPED' st STOPPED
+chk 'blocked phase 4 claiming GREEN: backstop fired' log_has 'expected artifact/status'
+
 echo '# R4-M3: the phase -> harness/model matrix is asserted, not assumed'
 scrub_env; make_flight dispatchmatrix
 run_driver
@@ -1209,6 +1281,136 @@ reentry_matrix_ok() { # phase 3 is re-entered from the PRIMARY, not from the run
 chk 'ladder re-entry: exact dispatch sequence across the bounce' reentry_matrix_ok
 chk 'ladder re-entry: the actor saw every dispatch the driver made' \
   test "$(cat "$S/dispatch")" -eq "$(wc -l < "$G/.ai/autopilot/dispatches")"
+
+echo '# R7-B1: no Markdown container can carry the completion proof'
+forged_green_refused() { # $1 = scenario, $2 = seed function, $3 = label
+  scrub_env; make_flight "$1"
+  (cd "$G" && seed_testplan APPROVED && "$2" && seed_plan gated && seed_commit)
+  run_driver -s 9
+  chk "$3: -s 9 refused" log_has 'phase 9 entry precondition failed'
+  chk "$3: STOPPED" st STOPPED
+  chk "$3: nothing pushed" test -z "$(git -C "$ORIGIN" for-each-ref)"
+}
+# The three constructs the seventh review published as publication bypasses:
+# each renders the row as hidden or code text, and each used to reach DONE.
+forged_green_refused b1comment  seed_impl_green_in_comment        'GREEN row inside an HTML comment'
+forged_green_refused b1longf    seed_impl_green_in_long_fence     'GREEN row fenced by a longer fence'
+forged_green_refused b1infostr  seed_impl_green_infostring_close  'GREEN row under an info-string closer'
+# …and the shapes that answer them: a container left open, so the row IS the
+# last line but still inert, and raw HTML, which the reader refuses to read.
+forged_green_refused b1opencom  seed_impl_green_open_comment      'GREEN row in an unclosed comment'
+forged_green_refused b1openfen  seed_impl_green_open_fence        'GREEN row in an unclosed fence'
+forged_green_refused b1rawhtml  seed_impl_green_raw_html          'GREEN row after a raw HTML block'
+# The position condition, on its own: an honest row stops proving anything the
+# moment something is written past it.
+forged_green_refused b1pastrow  seed_note_after_impl_green        'a note written past the GREEN row'
+# The two closing rules, each where it is the only thing standing: with the row
+# as the last line, only the opener's length — and the closer's empty info
+# string — keep these fences open, and an open fence is a refusal.
+forged_green_refused b1longopen seed_impl_green_long_fence_open   'GREEN row under a shorter inner fence'
+forged_green_refused b1infoopen seed_impl_green_infostring_open   'GREEN row under an info-string closer, unclosed'
+# Seven hashes are not a heading in Markdown, so the ruler under them opens a
+# section — the row sits outside the Log even though nothing follows it.
+forged_green_refused b1deepatx  seed_impl_green_after_deep_atx    'GREEN row under a ruler below a seven-hash line'
+
+scrub_env; make_flight b1why
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_open_fence && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'unclosed container: the refusal names the container, not the row' log_has 'never closed'
+
+scrub_env; make_flight b1whyhtml
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_raw_html && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'raw HTML: the refusal says it is refused, not misread' log_has "a line starts with '<'"
+
+scrub_env; make_flight b1whypos
+(cd "$G" && seed_testplan APPROVED && seed_note_after_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'proof written past: the refusal names the position, not the row' log_has 'last non-blank line'
+
+scrub_env; make_flight b1okcomment
+(cd "$G" && seed_testplan APPROVED && seed_log_comment_then_green && seed_plan gated && seed_commit)
+run_driver -s 9
+# The counterweight: comments are modelled, not refused — the shipped
+# template's Log carries them, so an honest testplan must still fly.
+chk 'an HTML comment inside the Log is legitimate: -s 9 accepted' st DONE
+
+scrub_env; make_flight b1p8pos
+SC=$BASE/sc-b1p8pos; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo "impl stub" >> src.txt
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+printf -- '- stub: a note written after the proof\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'phase 8 wrote past its own proof: the attempt is refused' log_has 'expected artifact/status'
+chk 'phase 8 wrote past its own proof: STOPPED' st STOPPED
+chknot 'phase 8 wrote past its own proof: phase 9 never launched' log_has 'phase 9 (Final Reviewer)'
+
+echo '# R7-M1: a Log refused for its shape has a repair, and the repair flies'
+scrub_env; make_flight logrepair
+(cd "$G" && seed_testplan APPROVED && seed_log_unfenced_output && seed_impl_green \
+   && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'unfenced pasted output: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'unfenced pasted output: the shape is named' log_has 'last section'
+chk 'unfenced pasted output: the refusal points at the documented repair' \
+  log_has 'Repairing a refused Log'
+chk 'unfenced pasted output: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+(cd "$G" && repair_log_fence_output)
+run_driver -s 9
+# The documented repair (autopilot.md § Repairing a refused Log): fence the
+# pasted bytes where they are, record the repair in the commit message, relaunch.
+chk 'after the documented repair: -s 9 flies to DONE' st DONE
+chk 'after the repair: the RED evidence is still there, verbatim' \
+  grep -qF 'FAILED (failures=12)' "$G/.ai/plans/demo.testplan.md"
+chk 'after the repair: branch on origin' git -C "$ORIGIN" show-ref --verify -q refs/heads/feature/demo
+
+echo '# R7-M2: the per-commit audit grammar, named by sha'
+scrub_env; make_flight badprefix
+SC=$BASE/sc-badprefix; mkdir -p "$SC"
+cat > "$SC/phase2" <<'EOF'
+{
+  printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
+  i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
+  printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n'
+} > "$TESTPLAN"
+git add -A && git commit -qm 'wrote the test inventory (TEST-1)'
+git rev-parse HEAD > "$FLIGHT_DIR/bad-sha"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'non-semantic commit: STOPPED' st STOPPED
+chk 'non-semantic commit: the grammar violation is named' log_has 'lacks a semantic prefix'
+chk 'non-semantic commit: the offending commit is named by sha' log_has "$(cat "$S/bad-sha")"
+chk 'non-semantic commit: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# R7: a failed attempt leaves no workspace behind for the retry'
+scrub_env; make_flight retryclean
+SC=$BASE/sc-retryclean; mkdir -p "$SC"
+cat > "$SC/phase2" <<'EOF'
+if [ -f "$FLIGHT_DIR/tried" ]; then
+  if [ -e leftover.txt ]; then echo dirty > "$FLIGHT_DIR/retry-tree"; else echo clean > "$FLIGHT_DIR/retry-tree"; fi
+  {
+    printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
+    i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
+    printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n'
+  } > "$TESTPLAN"
+  git add -A && git commit -qm 'feat: demo test inventory (TEST-1)'
+else
+  : > "$FLIGHT_DIR/tried"
+  echo 'half-written artifact from a worker that never committed' > leftover.txt
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+run_driver
+chk 'retry hygiene: the failed attempt is retried' log_has 'try 2/3'
+chk 'retry hygiene: the retry starts from a clean tree' grep -qx clean "$S/retry-tree"
+chk 'retry hygiene: the leftover never survived into the flight' test ! -e "$G/leftover.txt"
+chk 'retry hygiene: the flight completes' st DONE
 
 # ------------------------------------------------------------------- result --
 scrub_env

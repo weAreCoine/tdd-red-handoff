@@ -157,6 +157,32 @@ never rewritten, moved, deleted, or retrofitted: no design-record backfill, no r
 `.ai/plans/` already carries artifacts under the chosen name from an earlier era, pick another
 name — the flight never adopts or overwrites them.
 
+### What the Log may contain
+
+The flight reads it with a bounded reader, not a Markdown parser. Two constructs are modelled,
+and inside them nothing counts — no heading, no status row, no GREEN row: fenced blocks
+(` ``` ` or `~~~`, closed by a fence that repeats the opening characters, at least as many,
+alone on its line) and HTML comments (`<!-- … -->`, closed by the first line carrying `-->`).
+Everything else that could hide text is **refused** rather than interpreted: a line starting
+with `<` (raw HTML), a fence or comment left open at the end of the file, a second Log heading,
+any section after the Log. A refusal stops the flight and names the shape; the reader never
+falls back on a shorter Log or on a guess. Two consequences worth stating plainly: pasted
+command output goes inside a fenced block, and the Implementer's GREEN row is the file's last
+non-blank line (phase 8).
+
+### Repairing a refused Log
+
+Every refusal has the same repair — make the file say what it already means, without rewriting
+the record. Unfenced pasted output: wrap those lines in a fenced block where they are, changing
+no byte of them. A container left open: close it at the end of what it was meant to cover. Raw
+HTML: fence it, or reword the line so it does not start with `<`. A second Log heading, or a
+section after the Log: move that content **above** the Log heading. The repair is structural —
+it never rewrites, reorders or deletes an entry, and it never writes past the last line,
+because the GREEN row must stay there. Record the repair in the **commit message** (a new Log
+entry would be written past the proof), commit, then relaunch the driver at the phase the stop
+named (`-s <phase>`): the entry precondition is checked again, so an incomplete repair stops in
+the same place instead of flying on.
+
 ## Git / tracker ribbon
 
 - The base branch is `develop` — fixed by decision, not configurable. Phase 1 updates it and
@@ -262,9 +288,12 @@ Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the g
 green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
 canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
 under the testplan's `## 6. Log (append-only)` heading, its last section — nowhere else in the
-file, never after a heading of its own, and never inside a fenced block (fenced text is opaque to
-the flight) — and commit
-it with the code: that row, in that section, is the durable proof of implementation that
+file, never after a heading of its own, and never inside a fenced block or an HTML comment
+(both are opaque to the flight) — and, the condition that makes the row a proof, **as the
+file's last non-blank line**: anything you write for this phase goes *before* it, nothing after
+it. That is not bookkeeping. A row nothing follows cannot be inert text, because every
+construct that could hide it — a comment, a fence — would have to be closed after it. Commit
+it with the code: that row, in that place, is the durable proof of implementation that
 entering phase 9 requires, and a new one is required on every phase-8 run. A plan that cannot
 be implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log —
 never an improvisation, never the GREEN row, and never a change to the plan or the testplan.
