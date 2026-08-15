@@ -353,9 +353,13 @@ and pushed a branch. Fourth round, same family — the completion proof was reco
   failures. It fails loudly instead of quietly: a sed program that no longer matches (the file
   moved under it) reads `did-not-apply`, a mutant that stops parsing reads `does-not-parse`, an
   incomplete tree copy reads `copy-failed`, and a row with no measurement at all is printed as
-  `NOT RUN` rather than dropped — the first run of this round silently lost three rows to a
-  failed copy, which is the same defect class as an unreproducible count. The table below is
-  that script's output; reproducing a row is running `sh tests/driver/mutants.sh <id>`.
+  `NOT RUN` rather than dropped. That last one earned itself: the round's first two measurements
+  lost three rows, because the dispatch loop ran inside a pipeline's subshell — the final,
+  partial batch's jobs were that subshell's children, nothing waited for them, and the EXIT trap
+  deleted the tree under them mid-copy. The loop now runs in the harness's own shell, and a lost
+  row is printed instead of omitted; a silently missing row is the same defect class as an
+  unreproducible count. The table below is one run of that script; reproducing a row is running
+  `sh tests/driver/mutants.sh <id>`.
 
 ### What the behavior suite is a safety case for
 

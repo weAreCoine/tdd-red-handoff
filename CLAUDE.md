@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is no application code, build system, or test suite. The deliverables are Markdown files:
+This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is no application code and no build system; the deliverables are Markdown files, plus two shell programs and the behavior suite that pins the second one:
 
 - `.ai/templates/` — five templates that other projects instantiate
 - `.ai/process/` — the three process chapters (`two-role.md`, `pipeline.md`, `autopilot.md`): each profile's roles-and-phases contract, shipped **verbatim** (no markers, no project facts, never edited in a target)
@@ -12,6 +12,7 @@ This is the **Multi-Agent TDD Architecture Kit** — a meta-repository. There is
 - `.claude-plugin/` — the plugin manifests: `plugin.json` (its `version` is the authoritative kit version — ADR-0005) and `marketplace.json` (the repo is its own marketplace, plugin source `"./"`)
 - `bin/verify-kit.sh` — the kit's test surface (ADR-0006): the mechanical invariant checks, in kit-repo and target-project modes; ships inside the plugin, so `/verify-kit` works in any target
 - `bin/autopilot-driver.sh` — the autopilot profile's driver (ADR-0008): deterministic dispatch of flight phases 2–9, preflight, counters, git/PR ribbon; ships inside the plugin, launched by `/fly`, holds no model names (the machine binding comes from the target's `.ai/autopilot/models.env`)
+- `tests/driver/` — the driver's behavior suite (`run.sh`: disposable git repositories, stub harnesses, no network and no real model) and `mutants.sh`, the mutation harness whose rows are exact sed programs — the evidence behind ADR-0008's safety-property table. It rides along in the plugin payload like the rest of the repo, but nothing in it is installed into a target: it tests the kit, it is not part of a target's files
 - `README.md` — the approach itself, kept as a faithful mirror of the templates and commands
 
 Target projects install the kit as a Claude Code plugin — `/plugin marketplace add weAreCoine/tdd-red-handoff`, then `/plugin install tdd-red-handoff` — and run `/init-architecture` (new project — the legacy-kit migration is its appendix path); `/switch-profile` changes the active profile per task (`/show-profile` prints it, read-only), `/fly <feature>` opens an autopilot flight, `/update-kit` realigns the installed kit files when a new plugin version ships, `/update-models-roster` records model changes afterwards.
