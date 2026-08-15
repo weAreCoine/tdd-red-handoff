@@ -853,6 +853,16 @@ scrub_env; make_flight b1sub
 run_driver -s 9
 chk 'GREEN row under a deeper heading inside the Log: DONE' st DONE
 
+scrub_env; make_flight tmplshape
+(cd "$G" \
+  && sed 's/^> \*\*Status:\*\*.*/> **Status:** APPROVED/' "$KIT/.ai/templates/test_plan_template.md" \
+       > .ai/plans/demo.testplan.md \
+  && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+# The shipped template ends its Log with an HTML comment, not a heading, and
+# phase 8 appends with >>: on that real shape the row must still be in scope.
+chk 'testplan shaped like the shipped template: -s 9 accepted' st DONE
+
 echo '# phase 2 must leave the canonical Log heading behind'
 scrub_env; make_flight nolog2
 SC=$BASE/sc-nolog2; mkdir -p "$SC"
