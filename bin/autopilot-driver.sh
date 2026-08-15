@@ -177,6 +177,10 @@ ADR=.ai/plans/$FEATURE.adr.md
 LAST_VERDICT=''
 NOTES_FILE=''
 EXPECTED_REJ=0
+ENTRY_STATUS_ROW=''   # testplan Status row as the phase found it (blocked-producer backstop)
+ENTRY_GREEN=0         # canonical GREEN rows on the testplan Log as the phase found them
+ACCEPTED_HEAD=''      # HEAD of the last accepted phase — the only ref the ribbon may publish
+ACCEPTED_SNAP=''      # that phase's pre-dispatch snapshot, for the publication-time ancestry check
 
 # --- state helpers -----------------------------------------------------------
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "$S/driver.log"; }
@@ -245,6 +249,11 @@ verdict_parse() { # $1 = file -> V_VERDICT, V_ROUTE, V_NOTES; 1 on any deviation
   V_VERDICT=''; V_ROUTE=''; V_NOTES=''
   [ -f "$1" ] || return 1
   [ "$(wc -l < "$1")" -le 1 ] || return 1
+  # The grammar below is matched on a shell variable, and command substitution
+  # DROPS NUL bytes: a NUL inside "notes" — or inside a token — would vanish
+  # before the ERE ever saw it, and [:cntrl:] would never fire. So the raw
+  # file is rejected byte for byte first; only then is it read.
+  LC_ALL=C tr -d '\000' < "$1" | cmp -s - "$1" || return 1
   VC=$(cat "$1")
   case $VC in *"$NL"*) return 1 ;; esac
   printf '%s' "$VC" | grep -Eq "$VJ_RX" || return 1
@@ -262,6 +271,11 @@ status_line_is() { # $1 = file, $2 = ERE for the value — exactly one Status ro
   [ "$(grep -cE '^(> )?\*\*Status:\*\*' "$1")" -eq 1 ] || return 1
   grep -qE "^(> )?\*\*Status:\*\*[[:space:]]+($2)( — .*)?\$" "$1"
 }
+status_row() { # the single canonical Status row, verbatim; 1 if not exactly one
+  [ -f "$1" ] || return 1
+  [ "$(grep -cE '^(> )?\*\*Status:\*\*' "$1")" -eq 1 ] || return 1
+  grep -E '^(> )?\*\*Status:\*\*' "$1"
+}
 has_gate_row() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\*' "$1"; }
 GATE_ROW='^- \*\*Gate:\*\* APPROVED — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), all gate checks passed \(CLAUDE\.md, gate phase\)$'
 gate_row_ok() { # exactly one Gate row, and it is the full canonical approved row
@@ -271,10 +285,25 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
 }
 # Phase 8's durable completion signal: without it, "ready for 9" and "ready
 # for 8" are observably identical and a direct -s 9 would skip implementation.
-# Append-only (a re-run after a phase-9 reject adds another row), hence at
-# least one, not exactly one.
+# The signal is a row ON THE LOG — not those bytes anywhere in the file: an
+# inventory row, an example, or a manually misplaced line must not authorize
+# phase 9. Hence the scope: the canonical Log heading of the shipped
+# test_plan_template.md, required exactly once, and the rows below it.
+# Append-only (a re-run after a phase-9 reject adds another row), so the
+# predicate counts rows: at least one, never exactly one.
+LOG_HEAD='^## 6\. Log \(append-only\)$'
 IMPL_ROW='^- \*\*Implementation:\*\* GREEN — [0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]), full suite \+ typecheck \(Implementer\)$'
-impl_green() { [ -f "$1" ] && grep -qE "$IMPL_ROW" "$1"; }
+log_head_ok() { # exactly one canonical Log heading — zero or two is not a Log
+  [ -f "$1" ] && [ "$(grep -cE "$LOG_HEAD" "$1")" -eq 1 ]
+}
+impl_green_count() { # canonical GREEN rows below the canonical Log heading
+  if log_head_ok "$1"; then
+    tail -n +"$(grep -nE "$LOG_HEAD" "$1" | cut -d: -f1)" "$1" | grep -cE "$IMPL_ROW"
+  else
+    echo 0
+  fi
+}
+impl_green() { [ "$(impl_green_count "$1")" -ge 1 ]; }
 
 # --- phase metadata ----------------------------------------------------------
 phase_role() {
@@ -333,7 +362,7 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
     9) adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
          && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
          && impl_green "$TESTPLAN" \
-         || REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED carrying the Implementation GREEN row + gated RED plan" ;;
+         || REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED carrying the Implementation GREEN row on its canonical Log + gated RED plan" ;;
   esac
   [ -z "$REASON" ]
 }
@@ -341,19 +370,31 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
 # Artifact-on-disk backstop: after the phase, its output must exist, be
 # non-trivial, and carry the canonical state its verdict/route pair claims —
 # on the reject side too, so the durable record never denies a rejection.
+# A BLOCKED producer is checked as strictly as a working one, on its INPUT:
+# a stop is exactly when the artifacts become the operator's recovery
+# interface, so they must still say what the lifecycle and the route say.
+# ENTRY_STATUS_ROW / ENTRY_GREEN are the phase's entry snapshot (run_phase).
 artifact_ok() { # $1 = phase, $2 = route
   case $1 in
-    2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && status_line_is "$TESTPLAN" DRAFT ;;
+    2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && status_line_is "$TESTPLAN" DRAFT \
+         && log_head_ok "$TESTPLAN" ;;   # the Log every later phase appends to must exist, once
     3) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" READY
        else status_line_is "$TESTPLAN" DRAFT; fi ;;
-    4) [ "$2" = testplan ] || status_line_is "$TESTPLAN" RED ;;
+    4) if [ "$2" = testplan ]; then   # blocked: the READY/REJECTED(n) input must survive untouched
+         nontrivial "$TESTPLAN" 400 && [ "$(status_row "$TESTPLAN")" = "$ENTRY_STATUS_ROW" ] \
+           && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
+       else status_line_is "$TESTPLAN" RED; fi ;;
     5) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" APPROVED
        else status_line_is "$TESTPLAN" "REJECTED\($EXPECTED_REJ\)"; fi ;;
     6) [ -f "$PLAN" ] && [ "$(wc -c < "$PLAN")" -gt 400 ] && status_line_is "$PLAN" RED \
          && ! has_gate_row "$PLAN" ;;   # the Plan Reviewer stamps the Gate, never the planner
     7) if [ "$2" = proceed ]; then gate_row_ok "$PLAN"
        else status_line_is "$PLAN" RED && ! has_gate_row "$PLAN"; fi ;;
-    8) [ "$2" = plan ] || impl_green "$TESTPLAN" ;;
+    8) if [ "$2" = plan ]; then   # blocked: gated inputs intact, and no GREEN row claimed
+         nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
+           && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
+           && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
+       else [ "$(impl_green_count "$TESTPLAN")" -gt "$ENTRY_GREEN" ]; fi ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
        else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
   esac
@@ -364,13 +405,13 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
   notes=''
   [ -n "$3" ] && notes="A previous verdict bounced this work back to you — read the notes in $3 and answer them point by point in the testplan Log. "
   case $1 in
-    2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
+    2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, the template'"'"'s Log heading "## 6. Log (append-only)" kept verbatim and exactly once (every later phase appends under it), your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
     3) printf 'Judge %s against %s and the repository, per your phase contract. Approve: set the canonical Status line to READY, append your Log entry, commit. Reject: append point-by-point notes to the Log, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, these three keys, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "testplan".' "$TESTPLAN" "$ADR" "$2" ;;
     4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log, set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", nowhere else — and commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
     9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }
@@ -393,6 +434,11 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
   if [ "$is_reviewer" -eq 1 ]; then
     read_int "rej.$p"; EXPECTED_REJ=$((RI + 1))
   fi
+  # Entry snapshot of the inputs a producer may not silently alter. Taken once
+  # per phase: a failed attempt is reset to the same snapshot, so it holds for
+  # every try on every ladder rung.
+  ENTRY_STATUS_ROW=$(status_row "$TESTPLAN" || :)
+  ENTRY_GREEN=$(impl_green_count "$TESTPLAN")
 
   for model in $models; do
     tries=0
@@ -476,6 +522,11 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       if [ -z "$fail" ]; then
         [ -f "$verdict" ] && LAST_VERDICT=$verdict
         ROUTE=$route
+        # The reviewed commit, pinned: the ribbon publishes THIS sha, never
+        # "whatever feature/<f> points at by then" (a surviving child of the
+        # harness can still move a ref after the checks above have run).
+        ACCEPTED_HEAD=$(git rev-parse HEAD)
+        ACCEPTED_SNAP=$snap
         log "phase $p ok — route: $route"
         return 0
       fi
@@ -519,12 +570,29 @@ done
 
 # --- the ribbon: push + draft PR ---------------------------------------------
 log "phase 9 approved — pushing and opening the draft PR"
-# The published ref must be the reviewed HEAD: re-verify the branch at
-# publication time, not only at flight start.
+# The published ref must BE the reviewed commit — not merely the branch that
+# carried it. Between phase 9's checks and this push a surviving child of the
+# harness (or any concurrent mutation) can still move the ref, so all five
+# hold or nothing is pushed: right branch, clean tree, HEAD == the accepted
+# sha, the branch ref == the accepted sha, and the phase snapshot still an
+# ancestor. Then that sha is pushed explicitly, by object, not by name.
 [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/$FEATURE" ] \
   || stop_flight "not on feature/$FEATURE at publication time — refusing to push"
-git push -u origin "feature/$FEATURE" >> "$S/driver.log" 2>&1 \
+[ -z "$(git status --porcelain)" ] \
+  || stop_flight "working tree not clean at publication time — refusing to push"
+[ -n "$ACCEPTED_HEAD" ] \
+  || stop_flight "no accepted phase 9 commit recorded — refusing to push"
+[ "$(git rev-parse HEAD 2>/dev/null)" = "$ACCEPTED_HEAD" ] \
+  || stop_flight "HEAD moved after the accepted final review (reviewed $ACCEPTED_HEAD, now $(git rev-parse HEAD 2>/dev/null)) — refusing to push"
+[ "$(git rev-parse "refs/heads/feature/$FEATURE" 2>/dev/null)" = "$ACCEPTED_HEAD" ] \
+  || stop_flight "feature/$FEATURE no longer points at the reviewed commit $ACCEPTED_HEAD — refusing to push"
+git merge-base --is-ancestor "$ACCEPTED_SNAP" "$ACCEPTED_HEAD" 2>/dev/null \
+  || stop_flight "history under the reviewed commit was rewritten — refusing to push"
+git push origin "$ACCEPTED_HEAD:refs/heads/feature/$FEATURE" >> "$S/driver.log" 2>&1 \
   || stop_flight "git push failed — nothing was published; branch intact locally (see driver.log)"
+# Upstream tracking is a convenience for the operator, never a flight outcome:
+# pushing by object cannot set it, so it is set after the fact and never fatal.
+git branch --set-upstream-to="origin/feature/$FEATURE" "feature/$FEATURE" >> "$S/driver.log" 2>&1 || :
 
 verdict_parse "$LAST_VERDICT" || :   # -> V_NOTES ('' if the file went away)
 {

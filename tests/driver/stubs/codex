@@ -1,6 +1,7 @@
 #!/bin/sh
 # codex stub — validates the driver's exact argv contract before acting:
 #   codex exec --approve-for-me -m <id> <prompt>
+# The harness identity is passed on to the actor (see the claude stub).
 [ "$#" -eq 5 ] && [ "$1" = exec ] && [ "$2" = --approve-for-me ] && [ "$3" = -m ] && [ -n "$4" ] \
   || { echo "codex stub: unexpected argv: $*" >&2; exit 97; }
-exec sh "$(dirname "$0")/phase-actor.sh" "$5"
+exec sh "$(dirname "$0")/phase-actor.sh" codex "$4" "$5"

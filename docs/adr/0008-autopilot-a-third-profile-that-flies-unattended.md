@@ -67,9 +67,10 @@ the testplan-inertness rule, generalized ("extended inertness").
 
 One flight, one feature, one PR — no continuous loop. The branch opens from `develop`
 (fail-fast if the repo has none), every file-producing phase commits atomically, and a
-successful flight ends with a push, a draft PR against `develop`, and the tracker issue
-moved to review with PR and issue cross-linked. Promotion from draft, merge, and issue
-closure stay human; a personal post-merge command outside the kit cleans up. A stopped or
+successful flight ends with a push and a draft PR against `develop`; the tracker issue is
+moved to review and cross-linked with the PR when the final review has tracker tools —
+otherwise that move is proposed in its notes and stays an operator residual. Promotion
+from draft, merge, and issue closure stay human; a personal post-merge command outside the kit cleans up. A stopped or
 rejected flight pushes nothing: local commits and a report of the exact blocking point.
 
 ## Amendments (2026-08-14 — post-implementation review)
@@ -143,3 +144,62 @@ One finding touched this ADR's contract:
   residual, accepted: the row is append-only, so after a phase-9 reject that rewrites the
   plan, a row from the previous attempt still satisfies a *direct* `-s 9`; the normal routed
   path re-runs phase 8 regardless.
+
+## Amendments (2026-08-15 — fourth implementation review)
+
+A fourth independent review re-verified the third round's fixes and found four of them only
+partially closed, plus one suite-level blind spot. Two were publication-safety failures and
+blocked merge; all are fixed in place and covered by the behavior suite.
+
+- **The GREEN row counts only from the Log.** The completion signal above was checked with a
+  whole-file grep, so the same bytes anywhere in the testplan — an inventory row, an example,
+  a hand-placed line — authorized phase 9. The predicate is now scoped: exactly one canonical
+  `## 6. Log (append-only)` heading (the shipped template's), and the canonical rows below it.
+  The predicate also counts, which narrows — but does not close — the residual accepted in
+  the third round: **a phase-8 run must add a new row**, so an earlier attempt's row no
+  longer satisfies a re-run of implementation.
+  Beyond the review's ask, and recorded as such: phase 2's backstop now requires that
+  canonical heading to exist exactly once, so a testplan whose Log drifted from the template
+  stops the flight where it was written, not at phase 9's door with the implementation
+  already paid for.
+- **The ribbon publishes the reviewed commit, by object.** Branch integrity was checked when
+  each harness returned, but publication re-checked only the branch *name*: a child process
+  outliving the harness could move `feature/<f>` afterwards, and the driver pushed whatever
+  the name then pointed at while reporting `DONE`. The driver now records the accepted
+  phase-9 `HEAD` and, immediately before pushing, requires the exact branch, a clean tree,
+  `HEAD` and the branch ref both equal to that commit, and the phase snapshot still an
+  ancestor — then pushes that sha explicitly (`<sha>:refs/heads/feature/<f>`). Upstream
+  tracking is set afterwards and is never a flight outcome.
+- **A blocked producer is judged on its inputs.** `blocked` was an unconditional success for
+  phases 4 and 8: a producer could truncate or downgrade the artifact it consumed and still
+  be logged `ok`. Precisely at a stop — when the artifacts become the operator's recovery
+  interface — they must still say what the lifecycle says. A blocked phase 4 must leave the
+  testplan's Status row exactly as it found it; a blocked phase 8 must leave the testplan
+  APPROVED and the plan RED with its one canonical Gate; neither may add a GREEN row.
+- **The verdict grammar is byte-closed.** The single full-string ERE ran on a shell variable,
+  and command substitution silently drops NUL — so a NUL inside `notes`, or inside a routing
+  token, vanished before the control-byte ban could fire. The raw file is now rejected
+  byte-for-byte before it is read.
+- **The suite binds phases to harness families and model ids.** The stubs accepted any model
+  id and ran any phase for either harness: a mutant sending all eight phases through the
+  producer harness passed 132/132. Each stub now declares its identity, the actor refuses a
+  phase that does not belong to its family and a model id that is not the one that phase's
+  roster tier defines (read from the flight's own `models.env`, by key — never a literal),
+  every dispatch is recorded, and a scenario asserts the exact eight-phase sequence. The same
+  mutant now fails 52 assertions.
+
+Known residuals, accepted at this round:
+
+- The Log scope is a heading range: a canonical GREEN row written *inside* the Log but within
+  a fenced block still counts. The realistic misplacements the review reproduced (inventory,
+  prose, a fence before the Log, a missing or duplicated heading) are all refused.
+- The third round's residual stands, narrowed. Entering phase 9 still asks only whether at
+  least one canonical row is on the Log, and on disk a stale row is indistinguishable from a
+  fresh one — so a *direct* `-s 9` after a plan rewrite can still ride the previous attempt's
+  row. The routed path cannot: it re-runs phase 8, which must add one. Closing it outright
+  would mean persisting the last-seen count in the flight state — the persisted resume
+  whitelist the third round rejected — and is left to the operator.
+- The publication window between the driver's last check and git's own refspec resolution
+  cannot be closed from the outside; it is narrowed by pushing the reviewed object rather
+  than the branch name, and the behavior suite asserts the invariant that survives either
+  way — origin carries the reviewed commit, or nothing was published.

@@ -4,13 +4,25 @@
 # from the probe file, performs the canonical artifact work of its phase, and
 # commits with the semantic prefix + tracker reference the driver checks.
 #
+# Invocation (from the stubs): phase-actor.sh <harness> <model id> <prompt>
+#
+# Before acting it enforces the DRIVER'S dispatch matrix — reviewer phases go
+# to the claude family, producer phases to the codex family, and each phase
+# carries the model id its roster tier defines. Without this, a stub that runs
+# any phase for any harness with any id turns the suite green on a driver that
+# sent the whole flight through one family. Every dispatch is also recorded in
+# the gitignored flight dir so a scenario can assert the whole sequence.
+#
 # A test scenario overrides a phase by dropping an executable `phase<N>` script
 # into $STUB_SCENARIO_DIR: the stub then runs that INSTEAD of the default,
 # with PHASE/FEATURE/PROBE/VERDICT/TESTPLAN/PLAN/ADR/FLIGHT_DIR exported.
-# The stubs never contain model names: models here are opaque ids.
+# The stubs never contain model names: models here are opaque ids, and the
+# expected id is read from the flight's own models.env by KEY.
 
 set -u
-PROMPT=$1
+HARNESS=$1
+MODEL=$2
+PROMPT=$3
 
 PROBE=$(printf '%s\n' "$PROMPT" | sed -n 's/.*read the file \([^ ]*\) with your file tools.*/\1/p' | head -n 1)
 PHASE=$(printf '%s\n' "$PROMPT" | sed -n 's/.*phase \([2-9]\) of the unattended flight for feature "[a-z0-9-]*".*/\1/p' | head -n 1)
@@ -22,6 +34,27 @@ PLAN=.ai/plans/$FEATURE.md
 ADR=.ai/plans/$FEATURE.adr.md
 FLIGHT_DIR=.ai/autopilot/$FEATURE
 export PHASE FEATURE PROBE VERDICT TESTPLAN PLAN ADR FLIGHT_DIR
+
+[ -n "$PHASE" ] || { echo "phase-actor: no phase in the prompt" >&2; exit 95; }
+printf '%s %s %s\n' "$PHASE" "$HARNESS" "$MODEL" >> .ai/autopilot/dispatches
+
+# The matrix, restated independently of the driver: reviewers on claude,
+# producers on codex; each phase's model id read from models.env by its key.
+expect_harness() { case $PHASE in 3|5|7|9) echo claude ;; *) echo codex ;; esac; }
+expect_model_key() {
+  case $PHASE in
+    2|6) echo AP_MODEL_FLAGSHIP ;;
+    4)   echo AP_MODEL_COSTEFF ;;
+    8)   echo AP_MODEL_MID ;;
+    *)   echo AP_MODEL_REVIEW ;;
+  esac
+}
+[ "$HARNESS" = "$(expect_harness)" ] \
+  || { echo "phase-actor: phase $PHASE dispatched to '$HARNESS', expected '$(expect_harness)'" >&2; exit 96; }
+key=$(expect_model_key)
+want=$(sed -n "s/^$key='\([^']*\)'[[:space:]]*\$/\1/p" .ai/autopilot/models.env | head -n 1)
+[ -n "$want" ] && [ "$MODEL" = "$want" ] \
+  || { echo "phase-actor: phase $PHASE ran model '$MODEL', expected $key ('$want')" >&2; exit 96; }
 
 # Preflight: the honest answer, unless the scenario breaks this phase's worker
 # (STUB_BAD_PREFLIGHT_PHASES: space-separated phase numbers that answer wrong).
@@ -46,7 +79,7 @@ case $PHASE in
     {
       printf '# Test plan — %s\n\n> **Status:** DRAFT\n\n## Inventory\n\n' "$FEATURE"
       i=0; while [ $i -lt 12 ]; do printf -- '- case %s: input, expected value, boundary noted\n' $i; i=$((i+1)); done
-      printf '\n## Log\n\n- stub: inventory written (%s)\n' "$(stamp)"
+      printf '\n## 6. Log (append-only)\n\n- stub: inventory written (%s)\n' "$(stamp)"
     } > "$TESTPLAN"
     commit "feat: $FEATURE test inventory (TEST-1)"
     ;;

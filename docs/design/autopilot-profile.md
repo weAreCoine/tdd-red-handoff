@@ -58,8 +58,8 @@ feature = one PR. No continuous loop: the process terminates at phase 9.
 | 5 | Test Reviewer | Anthropic review tier | `claude -p` | routed verdict → `APPROVED`/`REJECTED(n)` | minor → 4 · structural → 2 |
 | 6 | Handoff Planner | OpenAI flagship tier | `codex exec`, agentic | `{feature}.md` (implementation plan), commit | — (receives bounces from 7, 8, 9) |
 | 7 | Plan Reviewer | Anthropic review tier | `claude -p` | `Gate: APPROVED` on the plan | reject → 6 |
-| 8 | Implementer | OpenAI mid tier | `codex exec`, agentic | minimal code until GREEN, commit | plan unworkable → 6 |
-| 9 | Final Reviewer | Anthropic review tier | `claude -p` | judges against **plan + design record**; `DONE`, last commit, push, draft PR, issue → in review, report | minor → 8 · structural → 6 |
+| 8 | Implementer | OpenAI mid tier | `codex exec`, agentic | minimum code until GREEN + the `Implementation: GREEN` row on the testplan Log, commit | plan unworkable → 6 |
+| 9 | Final Reviewer | Anthropic review tier | `claude -p` | judges against **plan + design record**; `DONE`, last commit, push, draft PR, issue → in review when the reviewer has tracker tools (else proposed in its notes), report | minor → 8 · structural → 6 |
 
 Topology invariant: one family designs and judges (1, 3, 5, 7, 9), the other produces
 (2, 4, 6, 8). Four produced artifacts, four cross-family gates. No artifact is ever judged

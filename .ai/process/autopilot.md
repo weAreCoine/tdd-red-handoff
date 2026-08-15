@@ -209,7 +209,9 @@ launch the driver. Then go dormant.
 From the design record, produce `{feature}.testplan.md` from `test_plan_template.md`: the
 test-case inventory — one row per test with exact arrange / act / assert values, applying
 `CLAUDE.md § Test Philosophy`. Every decision the Test Writer would otherwise make must be
-written here. Set `Status: DRAFT`, append the Log entry, commit. On re-entry after a
+written here. Keep the template's `## 6. Log (append-only)` heading verbatim and exactly once —
+every later phase appends under it, and the flight reads it there. Set `Status: DRAFT`, append
+the Log entry, commit. On re-entry after a
 rejection, answer the reviewer's notes point by point in the Log.
 
 ### Phase 3 — Inventory gate (TestPlan Reviewer)
@@ -223,9 +225,10 @@ verdict `proceed`. Reject → Log the point-by-point notes, commit, verdict rout
 
 Transcribe the inventory into test code — one test per row, names verbatim, placed per
 `PROJECT_ARCHITECTURE.md § Testing`. No spec decisions: a missing or ambiguous expected value
-is a `blocked` verdict (route `testplan`), not a guess. Run `test (focused)`; **verify RED
-mechanically** — never weaken an assert to force a failure. Append the RED output to the Log,
-set `Status: RED`, commit.
+is a `blocked` verdict (route `testplan`), not a guess — and a block leaves the testplan's
+status exactly as it was found, the gap written in the Log and nothing else. Run
+`test (focused)`; **verify RED mechanically** — never weaken an assert to force a failure.
+Append the RED output to the Log, set `Status: RED`, commit.
 
 ### Phase 5 — Test gate (Test Reviewer)
 
@@ -254,9 +257,11 @@ route `plan`.
 Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the gated tests
 green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
 canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
-to the testplan Log and commit it with the code — the durable proof of implementation that
-entering phase 9 requires. A plan that cannot be implemented as written is a `blocked` verdict
-(route `plan`) with the reason in the Log — never an improvisation, and never the GREEN row.
+under the testplan's `## 6. Log (append-only)` heading — nowhere else in the file — and commit
+it with the code: that row, in that section, is the durable proof of implementation that
+entering phase 9 requires, and a new one is required on every phase-8 run. A plan that cannot
+be implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log —
+never an improvisation, never the GREEN row, and never a change to the plan or the testplan.
 
 ### Phase 9 — Final review (Final Reviewer)
 

@@ -7,6 +7,12 @@
 # harnesses in ./stubs standing in for the real CLIs (AP_*_BIN test seams).
 # Model ids are opaque strings — no real model name ever appears here.
 #
+# The stubs are not passive: each declares its harness family and the actor
+# refuses a phase that belongs to the other family, or a model id that is not
+# the one that phase's roster tier defines. Every dispatch is recorded, and one
+# scenario asserts the whole eight-phase sequence — a driver that sent the
+# flight through a single harness would pass a suite that only ran phases.
+#
 # Exit 0 only if every assertion passes. TAP-ish output, one line per check.
 
 set -u
@@ -75,7 +81,7 @@ seed_testplan() { # $1 = Status value to seed
   {
     printf '# Test plan — demo\n\n> **Status:** %s\n\n## Inventory\n\n' "$1"
     i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
-    printf '\n## Log\n\n- seeded for the relaunch scenario\n'
+    printf '\n## 6. Log (append-only)\n\n- seeded for the relaunch scenario\n'
   } > .ai/plans/demo.testplan.md
 }
 seed_plan() { # $1 = 'gated' | 'ungated' (Status RED either way)
@@ -89,6 +95,20 @@ seed_plan() { # $1 = 'gated' | 'ungated' (Status RED either way)
 seed_commit() { git add -A && git commit -qm 'feat: demo seeded artifacts (TEST-1)'; }
 seed_impl_green() { # the durable phase-8 completion row on the testplan Log
   printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> .ai/plans/demo.testplan.md
+}
+seed_impl_green_outside_log() { # the same row, placed ABOVE the Log heading (R4-B1)
+  awk '/^## 6\. Log \(append-only\)$/ && !d {
+         print "- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)"
+         print ""; d = 1
+       } { print }' .ai/plans/demo.testplan.md > .ai/plans/demo.testplan.tmp \
+    && mv .ai/plans/demo.testplan.tmp .ai/plans/demo.testplan.md
+}
+seed_second_log_head() { # a duplicate Log heading: "the Log" stops being one place
+  printf '\n## 6. Log (append-only)\n\n- a second Log section\n' >> .ai/plans/demo.testplan.md
+}
+seed_no_log_head() { # a testplan whose Log heading drifted from the template
+  sed 's/^## 6\. Log (append-only)$/## Log/' .ai/plans/demo.testplan.md > .ai/plans/demo.testplan.tmp \
+    && mv .ai/plans/demo.testplan.tmp .ai/plans/demo.testplan.md
 }
 seed_gated_artifacts() { # $1 = 'gated' | 'ungated'
   seed_testplan APPROVED
@@ -247,7 +267,7 @@ cat > "$SC/phase2" <<'EOF'
 {
   printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
   i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
-  printf '\n## Log\n\n- stub: inventory written\n'
+  printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n'
 } > "$TESTPLAN"
 git add -A && git commit -qm 'feat: inventory with no tracker ref'
 EOF
@@ -614,6 +634,203 @@ scrub_env; make_flight m9i2
 run_driver -s 9
 chk 'matrix -s 9 freshly gated, no implementation: refused' log_has 'phase 9 entry precondition failed'
 chk 'matrix -s 9 nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+echo '# R4-B1: the GREEN row authorizes phase 9 only from inside the canonical Log'
+scrub_env; make_flight b1out
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_outside_log && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'GREEN row above the Log heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'GREEN row above the Log heading: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight b1dup
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_second_log_head && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'two Log headings: -s 9 refused' log_has 'phase 9 entry precondition failed'
+
+scrub_env; make_flight b1nohead
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_no_log_head && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'no canonical Log heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
+
+scrub_env; make_flight b1two
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'two GREEN rows on the Log (append-only): DONE' st DONE
+
+echo '# R4-B2: the ribbon publishes the reviewed commit, or nothing at all'
+scrub_env; make_flight b2reset
+SC=$BASE/sc-b2reset; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- stub: final review passed\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+git rev-parse HEAD > "$FLIGHT_DIR/reviewed-sha"
+printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+# A child that outlives the harness and rewrites the branch once the driver has
+# already accepted the phase — the window R4-B2 reported. Whether it wins the
+# race or not, the invariant below must hold.
+( n=0
+  while [ "$n" -lt 300 ]; do
+    if grep -q 'phase 9 ok' "$FLIGHT_DIR/driver.log" 2>/dev/null; then
+      git reset --hard develop >/dev/null 2>&1
+      echo done > "$FLIGHT_DIR/child-reset"
+      exit 0
+    fi
+    sleep 0.02; n=$((n + 1))
+  done ) >/dev/null 2>&1 &
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+published_is_reviewed() { # origin holds the reviewed sha, or nothing was published
+  o=$(git -C "$ORIGIN" rev-parse --verify -q refs/heads/feature/demo || echo none)
+  [ "$o" = none ] || [ "$o" = "$(cat "$S/reviewed-sha" 2>/dev/null)" ]
+}
+chk 'delayed branch reset: origin holds the reviewed commit or nothing' published_is_reviewed
+chk 'delayed branch reset: no DONE over an unpublished ref' \
+  sh -c '[ "$(cat "$1/status")" != DONE ] || git -C "$2" show-ref --verify -q refs/heads/feature/demo' _ "$S" "$ORIGIN"
+
+scrub_env; make_flight b2hook
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit
+ cat > .git/hooks/pre-push <<'EOF'
+#!/bin/sh
+# moves the branch out from under the push, after the driver's checks ran
+git update-ref refs/heads/feature/demo "$(git rev-parse develop)"
+exit 0
+EOF
+ chmod +x .git/hooks/pre-push)
+run_driver -s 9
+chk 'ref moved during the push: the published commit carries the DONE plan' \
+  sh -c 'git -C "$1" show refs/heads/feature/demo:.ai/plans/demo.md | grep -q "Status:\*\* DONE"' _ "$ORIGIN"
+
+scrub_env; make_flight b2obj
+SC=$BASE/sc-b2obj; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- stub: final review passed\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+git rev-parse HEAD > "$FLIGHT_DIR/reviewed-sha"
+printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'publication: flight completed' st DONE
+# git names the SOURCE of the refspec in its push output: pushing the reviewed
+# object prints that sha, pushing the branch name prints the branch name.
+chk 'publication: the push transmits the reviewed commit itself' \
+  sh -c 'grep -qF "$(cat "$1/reviewed-sha")" "$1/driver.log"' _ "$S"
+
+echo '# R4-M1: a blocked producer is checked on its inputs, not just on "it committed"'
+scrub_env; make_flight m1p8bad
+SC=$BASE/sc-m1p8bad; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DRAFT/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+grep -v '^- \*\*Gate:\*\*' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- stub: blocked, and the gated plan was degraded on the way out\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'blocked phase 8 that degraded the plan: STOPPED' st STOPPED
+chk 'blocked phase 8 that degraded the plan: backstop fired' log_has 'expected artifact/status'
+chknot 'blocked phase 8 that degraded the plan: no backward edge counted' log_has 'backward edge'
+
+scrub_env; make_flight m1p8green
+SC=$BASE/sc-m1p8green; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'blocked phase 8 claiming GREEN: STOPPED' st STOPPED
+chk 'blocked phase 8 claiming GREEN: backstop fired' log_has 'expected artifact/status'
+
+scrub_env; make_flight m1stale
+SC=$BASE/sc-m1stale; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'code without a GREEN row' >> src.txt
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 8
+chk 'phase 8 riding an older GREEN row: STOPPED' st STOPPED
+chk 'phase 8 riding an older GREEN row: backstop fired' log_has 'expected artifact/status'
+
+scrub_env; make_flight m1p8ok
+SC=$BASE/sc-m1p8ok; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+printf -- '- stub: blocked, the plan cannot be implemented as written\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+EOF
+AP_MAX_EDGES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_EDGES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'canonical blocked phase 8: route accepted' log_has 'phase 8 ok — route: plan'
+chk 'canonical blocked phase 8: stopped at the edge cap' log_has 'global cap'
+chk 'canonical blocked phase 8: testplan still APPROVED' \
+  grep -qF '> **Status:** APPROVED' "$G/.ai/plans/demo.testplan.md"
+chk 'canonical blocked phase 8: plan still RED and gated' \
+  sh -c 'grep -qF "> **Status:** RED" "$1" && grep -qF -- "- **Gate:** APPROVED" "$1"' _ "$G/.ai/plans/demo.md"
+chk 'canonical blocked phase 8: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight m1p4bad
+SC=$BASE/sc-m1p4bad; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DRAFT/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+printf -- '- stub: blocked, and the entry status was changed on the way out\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo transcription blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"testplan","notes":"ambiguous inventory row"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 4
+chk 'blocked phase 4 that moved the status: STOPPED' st STOPPED
+chk 'blocked phase 4 that moved the status: backstop fired' log_has 'expected artifact/status'
+
+echo '# R4-M3: the phase -> harness/model matrix is asserted, not assumed'
+scrub_env; make_flight dispatchmatrix
+run_driver
+chk 'dispatch matrix: flight completed' st DONE
+dispatch_matrix_ok() { # the driver's phase -> harness/model matrix, dispatch by dispatch
+  want=$(printf '%s\n' '2 codex flag-1' '3 claude rev-1' '4 codex cost-1' '5 claude rev-1' \
+                        '6 codex flag-1' '7 claude rev-1' '8 codex mid-1' '9 claude rev-1')
+  [ "$(cat "$G/.ai/autopilot/dispatches")" = "$want" ]
+}
+chk 'dispatch matrix: exact eight-phase harness/model sequence' dispatch_matrix_ok
+
+echo '# R4-M2: a NUL byte cannot slip past the closed verdict grammar'
+scrub_env; make_flight nulnotes
+SC=$BASE/sc-nulnotes; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"le\000ft"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'NUL inside notes: STOPPED' st STOPPED
+chk 'NUL inside notes: strict grammar fired' log_has 'not the prescribed single-line JSON'
+chk 'NUL inside notes: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight nultoken
+SC=$BASE/sc-nultoken; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '{"verdict":"appro\000ve","route":"proceed","notes":"ok"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'NUL inside a routing token: STOPPED' st STOPPED
+chk 'NUL inside a routing token: strict grammar fired' log_has 'not the prescribed single-line JSON'
 
 # ------------------------------------------------------------------- result --
 scrub_env
