@@ -28,7 +28,9 @@ profile, so nothing else is touched.
 **Testplans.** This rule fires only when the **destination** profile has no role that continues
 an in-flight testplan (today: `two-role`, and `autopilot` — a flight produces its own artifacts
 from a fresh interview and never adopts a half-done testplan). Switching **to** `pipeline`
-never blocks — it *revives* inert testplans rather than orphaning them.
+never blocks — it *revives* inert **pipeline** testplans rather than orphaning them (a feature
+with a sibling `{feature}.adr.md` design record is an autopilot flight and stays inert under
+every profile — extended inertness).
 
 Read every `.ai/plans/*.testplan.md`. If **any** has `Status` of `DRAFT`, `READY`, `RED` or
 `REJECTED(n)` — i.e. no implementation plan was issued yet — **STOP**: name the feature and its
@@ -47,7 +49,8 @@ should be rare, and overriding it is the user's call, never yours.
 
 `APPROVED` testplans (plan already issued) and plain `{feature}.md` plans don't block: plans are
 readable under every profile, and testplans simply go **inert** — never rewritten, moved, or
-deleted; they come back to life on the way back to pipeline.
+deleted; those without a sibling design record come back to life on the way back to pipeline,
+while ADR-signed sets stay autopilot's.
 
 ## Phase 2 — Apply
 

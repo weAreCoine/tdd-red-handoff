@@ -100,3 +100,26 @@ decisions this ADR had left implicit. Resolved with the operator:
   that hold are: preflight nonce, canonical status/gate rows on the artifact, HEAD advanced
   with the tracker reference in the message, clean tree. Revisit with `--json` /
   `--output-schema` — watch item.
+
+## Amendments (2026-08-15 — second implementation review)
+
+A second independent review (same flagship tier) re-examined the delta. Its blockers were
+implementation defects, fixed in place; three of its findings touched this ADR's contract and
+are resolved as follows:
+
+- **The tracker close-out is best-effort in-flight.** "A successful flight ends with the
+  tracker issue moved to review" reads as: the Final Reviewer moves it when it has tracker
+  tools; otherwise the DONE report names the move and the issue ↔ PR cross-link as the
+  operator's residual step. The driver never talks to the tracker itself — that would add a
+  per-tracker dependency and a new way to fail after publication. The suite evidence lives in
+  the phase-9 commits and the testplan Log, not in the PR body.
+- **"Commits atomically" means committed and clean at phase end — not one commit.** The
+  enforced grammar is per commit: every commit a phase produces carries the semantic prefix
+  and the tracker reference. A phase splitting its work into two well-formed commits is not a
+  fault; a single unreferenced commit is.
+- **Gate soundness is enforced as entry preconditions, not a resume whitelist.** Before any
+  phase launch — normal flow or `-s` relaunch — the artifacts on disk must justify entering
+  it (phase 8 requires the testplan APPROVED, the plan RED, and exactly one canonical approved
+  Gate row). This closes the review's relaunch-bypass finding while leaving the operator free
+  to re-enter *upstream* of the stop when the amendment is deeper; a persisted single resume
+  point would forbid exactly that legitimate case.

@@ -29,7 +29,8 @@ branch is fixed by ADR-0008). The full contract is the chapter: `.ai/process/aut
    (TestPlan Designer / Handoff Planner — flagship production tier; Test Writer —
    cost-efficient; Implementer — mid) besides Designer and Verifier. A missing row → STOP and
    point to `/update-models-roster` (its autopilot-bootstrap operation adds them).
-5. **Git**: the `develop` branch exists — missing → STOP, its creation is a human act. An
+5. **Git**: the **local branch** `develop` exists (`git show-ref --verify refs/heads/develop`
+   — a tag named `develop` does not count) — missing → STOP, its creation is a human act. An
    `origin` remote exists. Working tree clean.
 6. **Tooling, actually usable**: the two headless harness CLIs and `gh` are on PATH; `gh auth
    status` succeeds; each CLI's `--help` accepts the flags the flight will pass it (the
@@ -58,12 +59,20 @@ AP_MODEL_REVIEW='<review-tier CLI id>'
 AP_MODEL_FLAGSHIP='<flagship-production CLI id>'
 AP_MODEL_COSTEFF='<cost-efficient-production CLI id>'
 AP_MODEL_MID='<mid-production CLI id>'
-AP_LADDER_FLAGSHIP='<space-separated fallback ids, per the roster ladder>'   # optional
+# One ladder key per tier the driver reads — write '' when the roster records
+# no ladder for that tier, so the binding is an exact mirror of the roster:
+AP_LADDER_FLAGSHIP='<space-separated fallback ids, per the roster ladder>'
+AP_LADDER_COSTEFF=''
+AP_LADDER_MID=''
+AP_LADDER_REVIEW=''
 ```
 
-The file is **data, not code**: the driver parses it key by key and rejects anything outside
-`[A-Za-z0-9._:/-]` in a model id — no quotes, no spaces inside ids, no shell syntax. Each
-binding must agree with the roster row it implements — the roster stays the human record.
+The file is **data, not code**: the driver parses it key by key against a strict grammar and
+rejects malformed lines, unknown keys, duplicate keys, and anything outside `[A-Za-z0-9._:/-]`
+in a model id — no quotes, no spaces inside ids, no shell syntax. Each binding must agree with
+the roster row it implements — the roster stays the human record. Before launching, show the
+operator the full mapping, roster row → binding key (ladders included): a ladder recorded in
+the roster but absent here would silently never be tried.
 
 **Permission policy** (ADR-0008 amendment): by default the flight runs guarded — producers on
 codex's workspace-write sandbox with automatic approvals (`--approve-for-me`), reviewers on
@@ -96,18 +105,29 @@ only what the artifacts say, and nobody attends them. Then, in order:
 3. Write the design record `.ai/plans/{feature}.adr.md` — goal, scope and non-goals, affected
    layers and signatures, edge-case map, tracker reference, model bindings (substitutions,
    ladder, and any bypass policy included).
-4. Write the flight config, then commit the design record **together with the `.gitignore`
-   line** (Phase A only checked it — an uncommitted `.gitignore` edit would fail the driver's
-   clean-tree precondition):
+4. Write the flight config and the `.gitignore` line, then commit **every file phase 1
+   produced** in one commit. The ignore check must match the exact line (a partial pattern
+   like `.ai/autopilot/models.env` does not cover flight state), and the append must not glue
+   itself to a final line with no newline:
    ```sh
    mkdir -p .ai/autopilot/{feature}
    printf "AP_ISSUE_REF='%s'\n" "<issue-ref>" > .ai/autopilot/{feature}/flight.env
-   grep -q '^\.ai/autopilot/' .gitignore 2>/dev/null || printf '.ai/autopilot/\n' >> .gitignore
-   git add .ai/plans/{feature}.adr.md .gitignore
+   if ! grep -qxF '.ai/autopilot/' .gitignore 2>/dev/null; then
+     [ ! -s .gitignore ] || [ -z "$(tail -c 1 .gitignore)" ] || printf '\n' >> .gitignore
+     printf '.ai/autopilot/\n' >> .gitignore
+   fi
+   git status --porcelain   # everything listed must be a phase-1 output — see below
+   git add -A
    git commit -m "feat: {feature} — design record (<issue-ref>)"
    ```
-   `flight.env` carries only the tracker reference (charset `[A-Za-z0-9_#-]`); the base branch
-   is `develop` by contract, not by configuration.
+   Before that `git add`, review `git status --porcelain`: a `grill-with-docs` interview
+   legitimately writes more than the design record — glossary/domain-model updates and project
+   ADRs are normal outcomes, and they belong in this same atomic commit (an uncommitted file
+   would fail the driver's clean-tree precondition). Anything listed that is **not** a phase-1
+   output (design record, glossary, project ADRs, `.gitignore`) → STOP, show the list to the
+   operator, and do not launch. `flight.env` carries only the tracker reference (charset
+   `[A-Za-z0-9_#-]`) and lives under the ignored `.ai/autopilot/`; the base branch is
+   `develop` by contract, not by configuration.
 
 ## Phase D — Launch and go dormant
 

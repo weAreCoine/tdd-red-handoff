@@ -45,7 +45,7 @@ plan, the implementer doesn't know it.
 
 One artifact per feature: the implementation plan `.ai/plans/{feature}.md`, written from
 `.ai/templates/plan_template.md` in Phase 3. The `Source testplan` and `Gate` rows of that
-template belong to the pipeline profile — omit them under two-role.
+template belong to the gated profiles (pipeline, autopilot) — omit them under two-role.
 
 Artifacts produced under another profile are **inert** while two-role is active — read, never
 rewritten, moved, deleted, or retrofitted. Two cases:

@@ -161,8 +161,9 @@ name — the flight never adopts or overwrites them.
 - The base branch is `develop` — fixed by decision, not configurable. Phase 1 updates it and
   branches `feature/{feature}` from it — **fail fast** with a clear message if `develop` is
   missing: its creation is a human act.
-- Every file-producing phase commits atomically, message carrying the semantic prefix and the
-  tracker reference from the design record.
+- Every file-producing phase ends committed with a clean tree, and **every** commit it
+  produces carries the semantic prefix and the tracker reference from the design record —
+  the audit trail holds commit by commit, not in aggregate.
 - After phase 9 approves, the driver pushes and opens a **draft PR against `develop`** with a
   compiled body (summary from the plan, flight counters, final review notes, tracker
   reference). The Final Reviewer moves the issue to review when it has tracker tools;

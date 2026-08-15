@@ -7,7 +7,7 @@ Implementation notes (decisions taken at build time, within this design):
 
 - The phase-1 launch command is **`/fly <feature>`** (`commands/fly.md`); the driver is
   `bin/autopilot-driver.sh`, plugin-served like `verify-kit.sh`, POSIX sh, no dependencies
-  beyond git and the two headless harness CLIs.
+  beyond git, `gh` (push + draft PR ribbon), and the two headless harness CLIs.
 - The driver never reads the roster: the machine binding (CLI model identifiers per tier,
   ladder included) lives in the target's gitignored `.ai/autopilot/models.env`, written by
   `/fly` from the roster with the operator confirming. The roster stays the human record.
@@ -97,8 +97,9 @@ Generic per phase, model-agnostic, harness-agnostic:
 4. **2 retries** with the same model, then the recorded substitution ladder, then the
    operator. A substitute passes its own preflight.
 5. Backstops for mid-session degradation: end of every phase requires the expected artifact
-   on disk (non-trivial) and a clean tree after commit; the driver scans the phase's JSON
-   event stream for tool-failure bursts.
+   on disk (non-trivial, carrying the canonical state its route claims) and a clean tree
+   after commit. The JSON event-stream scan designed here was dropped at build time —
+   unreliable in text-mode harness output (ADR-0008 § Amendments); revisit with `--json`.
 
 Known motivating bug: the OpenAI flagship tier currently has an open issue in the headless
 harness (tool schemas invisible on some turns). The preflight absorbs it without any
@@ -133,7 +134,7 @@ rewritten, moved, deleted, or retrofitted (no ADR backfill, no retroactive Gate 
 All repos carry a `develop` branch; `main`/`master` tracks production (Coolify / Laravel
 Forge deploys). The flight: phase 1 updates `develop` and branches `feature/{feature}` from
 it (**fail-fast** with a clear message if `develop` is missing — its creation is a human
-act); every file-producing phase commits atomically with the tracker reference in the
+act); every file-producing phase ends committed and clean, every commit carrying the tracker reference in the
 message; a successful phase 9 pushes and opens a **draft PR against `develop`** with a
 compiled body (summary from design record and plan, suite outcome, tracker reference),
 moves the issue to review, cross-links both. Promotion from draft, merge (typically

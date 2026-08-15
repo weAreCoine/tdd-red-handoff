@@ -12,14 +12,22 @@
 # gh (push + draft PR ribbon). Concrete model identifiers are never written
 # here: they come from .ai/autopilot/models.env, written by /fly from the
 # project's Model Roster with the operator confirming. Config files are DATA,
-# not code: they are parsed key by key against a strict grammar, never sourced.
+# not code: parsed key by key against a strict grammar, never sourced; a
+# malformed line, an unknown key, or a duplicate key is fatal — a config the
+# driver does not fully understand must not half-apply.
 #
 # Permission policy (ADR-0008 amendments): producers run codex in its
 # workspace-write sandbox with automatic approvals; reviewers run claude with
-# the operator's Claude Code sandbox plus acceptEdits. A bypass policy is never
-# a silent default — it must be recorded in models.env by the operator.
+# the operator's Claude Code sandbox plus acceptEdits. A bypass is never a
+# silent default and never inherited from the caller's environment — it exists
+# only as an explicit AP_*_ARGS line in models.env, written by the operator.
 #
 # The base branch is `develop`, fixed by ADR-0008 — not configurable.
+#
+# Entry preconditions (ADR-0008: re-entry always passes the gate): before ANY
+# phase launch — first phase, normal flow, or an -s relaunch — the artifacts
+# on disk must justify entering it. The only path into phase 8 is a plan
+# carrying the approved Gate row that only phase 7 writes.
 #
 # State lives under .ai/autopilot/<feature>/ (gitignored). Terminal statuses:
 #   DONE     pushed and draft PR opened                      exit 0
@@ -28,7 +36,8 @@
 # Exit 2 = usage / precondition failure (no state written).
 #
 # Usage: autopilot-driver.sh -f <feature> [-s <phase 2-9>] [-F] [dir]
-#   -s  phase to (re-)enter — operator relaunch after amending a stop
+#   -s  phase to (re-)enter after amending a stop — accepted only when the
+#       artifacts' state satisfies that phase's entry precondition
 #   -F  force: clear a stale lock/RUNNING marker
 
 set -u
@@ -56,7 +65,19 @@ printf '%s' "$FEATURE" | grep -Eq '^[a-z0-9][a-z0-9-]*$' \
 case $START in 2|3|4|5|6|7|8|9) ;; *) die "-s must be 2-9" ;; esac
 cd "$ROOT" || exit 2
 
-# --- config: strict KEY='value' lines, parsed (never sourced) ----------------
+# --- config: strict KEY='value' files, parsed (never sourced) ----------------
+cfg_validate() { # $1 = file, $2 = whitespace-separated known keys
+  known=$(printf '%s' "$2" | tr '\n' ' ')
+  seen=' '
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in ''|'#'*) continue ;; esac
+    key=$(printf '%s' "$line" | sed -n "s/^\([A-Z_][A-Z_0-9]*\)='[^']*'[[:space:]]*\$/\1/p")
+    [ -n "$key" ] || die "$1: malformed line (expected KEY='value'): $line"
+    case " $known " in *" $key "*) ;; *) die "$1: unknown key '$key'" ;; esac
+    case $seen in *" $key "*) die "$1: duplicate key '$key'" ;; esac
+    seen="$seen$key "
+  done < "$1"
+}
 cfg_get() { # $1 = file, $2 = key
   sed -n "s/^$2='\([^']*\)'[[:space:]]*\$/\1/p" "$1" | head -n 1
 }
@@ -66,7 +87,10 @@ is_model_list() { # every space-separated token is a plausible CLI model id
     printf '%s' "$t" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:/-]*$' || return 1
   done
 }
-is_args() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9 ._=:-]*$'; }
+is_args() { # an option string: non-empty, starts with '-', allowed charset only
+  printf '%s' "$1" | grep -Eq '^-[A-Za-z0-9 ._=:-]*$'
+}
+is_count() { printf '%s' "$1" | grep -Eq '^[1-9][0-9]*$'; }
 
 S=.ai/autopilot/$FEATURE
 MODELS_ENV=.ai/autopilot/models.env
@@ -77,6 +101,11 @@ profile=$(sed -n 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .ai/
 [ "$profile" = autopilot ] || die "active profile is '$profile', not autopilot (/switch-profile)"
 [ -f "$MODELS_ENV" ] || die "$MODELS_ENV missing (/fly writes it)"
 [ -f "$FLIGHT_ENV" ] || die "$FLIGHT_ENV missing (/fly writes it)"
+
+cfg_validate "$MODELS_ENV" 'AP_MODEL_REVIEW AP_MODEL_FLAGSHIP AP_MODEL_COSTEFF AP_MODEL_MID
+AP_LADDER_FLAGSHIP AP_LADDER_COSTEFF AP_LADDER_MID AP_LADDER_REVIEW
+AP_CLAUDE_ARGS AP_CODEX_ARGS'
+cfg_validate "$FLIGHT_ENV" 'AP_ISSUE_REF'
 
 MODEL_REVIEW=$(cfg_get "$MODELS_ENV" AP_MODEL_REVIEW)
 MODEL_FLAGSHIP=$(cfg_get "$MODELS_ENV" AP_MODEL_FLAGSHIP)
@@ -98,9 +127,11 @@ for v in "AP_LADDER_FLAGSHIP=$LADDER_FLAGSHIP" "AP_LADDER_COSTEFF=$LADDER_COSTEF
   [ -z "$val" ] || is_model_list "$val" || die "models.env: ${v%%=*} is not a valid model list ('$val')"
 done
 
-# Permission policy: env (test seam) > models.env record > sandboxed default.
-CLAUDE_POLICY=${AP_CLAUDE_ARGS:-$(cfg_get "$MODELS_ENV" AP_CLAUDE_ARGS)}
-CODEX_POLICY=${AP_CODEX_ARGS:-$(cfg_get "$MODELS_ENV" AP_CODEX_ARGS)}
+# Permission policy: the per-project record in models.env, else the guarded
+# default. Never read from the environment (ADR-0008 amendment: a bypass exists
+# only as an explicit line in the machine binding).
+CLAUDE_POLICY=$(cfg_get "$MODELS_ENV" AP_CLAUDE_ARGS)
+CODEX_POLICY=$(cfg_get "$MODELS_ENV" AP_CODEX_ARGS)
 [ -n "$CLAUDE_POLICY" ] || CLAUDE_POLICY='--permission-mode acceptEdits'
 [ -n "$CODEX_POLICY" ] || CODEX_POLICY='--approve-for-me'
 is_args "$CLAUDE_POLICY" || die "invalid AP_CLAUDE_ARGS ('$CLAUDE_POLICY')"
@@ -111,17 +142,22 @@ ISSUE_REF=$(cfg_get "$FLIGHT_ENV" AP_ISSUE_REF)
 printf '%s' "$ISSUE_REF" | grep -Eq '^[A-Za-z0-9_#-]*$' \
   || die "flight.env: AP_ISSUE_REF has invalid characters ('$ISSUE_REF')"
 
+# Test seams (binaries and caps only — never the permission policy).
 CLAUDE_BIN=${AP_CLAUDE_BIN:-claude}
 CODEX_BIN=${AP_CODEX_BIN:-codex}
 GH_BIN=${AP_GH_BIN:-gh}
 MAX_GATE_REJECTS=${AP_MAX_GATE_REJECTS:-2}   # the (N+1)th rejection on one gate stops
 MAX_EDGES=${AP_MAX_EDGES:-6}                 # global backward-edge cap per flight
 MAX_TRIES=${AP_MAX_TRIES:-3}                 # 1 attempt + 2 retries per model
+for v in "AP_MAX_GATE_REJECTS=$MAX_GATE_REJECTS" "AP_MAX_EDGES=$MAX_EDGES" \
+         "AP_MAX_TRIES=$MAX_TRIES"; do
+  is_count "${v#*=}" || die "${v%%=*} must be a positive integer ('${v#*=}')"
+done
 
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || die "not a git repo"
 [ "$branch" = "feature/$FEATURE" ] || die "on '$branch', expected 'feature/$FEATURE'"
-git rev-parse --verify -q "$BASE_BRANCH" >/dev/null \
-  || die "base branch '$BASE_BRANCH' missing — its creation is a human act (ADR-0008)"
+git show-ref --verify -q "refs/heads/$BASE_BRANCH" \
+  || die "local branch '$BASE_BRANCH' missing (a tag is not a base) — its creation is a human act (ADR-0008)"
 [ -z "$(git status --porcelain)" ] || die "working tree not clean"
 
 mkdir -p "$S/logs" "$S/verdicts" "$S/probes"
@@ -135,16 +171,23 @@ PLAN=.ai/plans/$FEATURE.md
 ADR=.ai/plans/$FEATURE.adr.md
 LAST_VERDICT=''
 NOTES_FILE=''
+EXPECTED_REJ=0
 
 # --- state helpers -----------------------------------------------------------
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "$S/driver.log"; }
 
-read_int() { # $1 = state file; corrupt state is fatal, never silently reset
-  if [ -f "$S/$1" ]; then c=$(cat "$S/$1"); else c=0; fi
-  case $c in ''|*[!0-9]*) stop_flight "corrupt state: $S/$1 ('$c')" ;; esac
-  printf '%s' "$c"
+# Counters run in the PARENT shell only: stop_flight must be able to terminate
+# the driver, and an exit inside $(...) would only kill the subshell — the
+# flight would keep flying on a state it just declared corrupt.
+read_int() { # $1 = state file -> RI; corrupt state is fatal, never silently reset
+  if [ -f "$S/$1" ]; then RI=$(cat "$S/$1"); else RI=0; fi
+  case $RI in ''|*[!0-9]*) stop_flight "corrupt state: $S/$1 ('$RI')" ;; esac
 }
-bump() { c=$(($(read_int "$1") + 1)); echo "$c" > "$S/$1"; printf '%s' "$c"; }
+bump() { # $1 = state file -> BUMPED
+  read_int "$1"
+  BUMPED=$((RI + 1))
+  printf '%s\n' "$BUMPED" > "$S/$1" || stop_flight "cannot write $S/$1"
+}
 show_int() { # report-context reader: tolerant, never recurses into stop_flight
   if [ -f "$S/$1" ]; then cat "$S/$1"; else echo 0; fi
 }
@@ -166,7 +209,7 @@ write_report() { # $1 = final status line
 stop_flight() { # $1 = reason
   log "STOP: $1"
   echo STOPPED > "$S/status"
-  write_report "**STOPPED** — $1. Nothing was pushed. Amend, then relaunch the driver with -s <phase>."
+  write_report "**STOPPED** — $1. Nothing was pushed. Amend, then relaunch the driver with -s <phase> (the entry precondition of that phase must hold)."
   echo "autopilot-driver: flight stopped — $1 (report: $S/report.md)" >&2
   exit 1
 }
@@ -180,17 +223,28 @@ cleanup() { # EXIT: release the lock; an abnormal exit must not leave RUNNING be
 trap cleanup EXIT
 trap 'stop_flight "interrupted"' INT TERM HUP
 
+# --- verdict files: strict single-line JSON, then field extraction -----------
+verdict_ok() { # the prescribed compact shape, three known keys, one line, nothing else
+  [ -f "$1" ] || return 1
+  [ "$(wc -l < "$1")" -le 1 ] || return 1
+  grep -qE '^\{[[:space:]]*"verdict"[[:space:]]*:[[:space:]]*"(approve|reject|blocked)"[[:space:]]*,[[:space:]]*"route"[[:space:]]*:[[:space:]]*"[a-z]+"[[:space:]]*,[[:space:]]*"notes"[[:space:]]*:[[:space:]]*".*"[[:space:]]*\}[[:space:]]*$' "$1"
+}
 json_field() { sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -n 1; }
 
 # --- artifact status parsing (anchored to the canonical rows) ----------------
-status_line_is() { # $1 = file, $2 = expected status value
+status_line_is() { # $1 = file, $2 = ERE for the value — closed by a boundary,
+                   # so READY never matches READYNESS
   [ -f "$1" ] || return 1
-  n=$(grep -cE '^(> )?\*\*Status:\*\*' "$1" || true)
-  [ "$n" -eq 1 ] || return 1
-  grep -qE "^(> )?\*\*Status:\*\*[[:space:]]*$2" "$1"
+  [ "$(grep -cE '^(> )?\*\*Status:\*\*' "$1")" -eq 1 ] || return 1
+  grep -qE "^(> )?\*\*Status:\*\*[[:space:]]*($2)([[:space:]]|\$)" "$1"
 }
-has_status_line() { [ -f "$1" ] && [ "$(grep -cE '^(> )?\*\*Status:\*\*' "$1" || true)" -eq 1 ]; }
-has_gate_row() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\* APPROVED' "$1"; }
+has_gate_row() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\*' "$1"; }
+has_approved_gate() { [ -f "$1" ] && grep -qE '^- \*\*Gate:\*\* APPROVED' "$1"; }
+gate_row_ok() { # exactly one Gate row, carrying the canonical approved grammar
+  [ -f "$1" ] || return 1
+  [ "$(grep -cE '^- \*\*Gate:\*\*' "$1")" -eq 1 ] || return 1
+  grep -qE '^- \*\*Gate:\*\* APPROVED — [0-9]{4}-[0-9]{2}-[0-9]{2}' "$1"
+}
 
 # --- phase metadata ----------------------------------------------------------
 phase_role() {
@@ -221,19 +275,48 @@ reject_routes() { # backward routes a REVIEWER may take
 producer_route() { case $1 in 4) echo testplan ;; 8) echo plan ;; *) echo '' ;; esac; }
 route_phase() { case $1 in testplan) echo 2 ;; tests) echo 4 ;; plan) echo 6 ;; implementation) echo 8 ;; esac; }
 
-# Artifact-on-disk backstop: the phase's expected output exists, is non-trivial,
-# and carries the canonical status/gate row the chapter prescribes.
+# Entry precondition: the artifacts on disk must justify launching this phase.
+# Checked before EVERY launch — first phase, routed re-entry, or -s relaunch —
+# so no path (including the recovery interface) reaches a consumer ungated.
+entry_ok() { # $1 = phase -> 0/1; REASON set on failure
+  REASON=''
+  case $1 in
+    2) [ -f "$ADR" ] && [ "$(wc -c < "$ADR")" -gt 200 ] \
+         || REASON="design record $ADR missing or trivial" ;;
+    3) status_line_is "$TESTPLAN" DRAFT \
+         || REASON="testplan is not in DRAFT (phase 3 judges a DRAFT inventory)" ;;
+    4) status_line_is "$TESTPLAN" 'READY|REJECTED\([0-9]+\)' \
+         || REASON="testplan is not READY (or bounced REJECTED(n))" ;;
+    5) status_line_is "$TESTPLAN" RED \
+         || REASON="testplan is not RED" ;;
+    6) status_line_is "$TESTPLAN" APPROVED \
+         || REASON="testplan is not APPROVED" ;;
+    7) status_line_is "$PLAN" RED && ! has_approved_gate "$PLAN" \
+         || REASON="plan missing, not RED, or already gated (phase 7 stamps the Gate itself)" ;;
+    8|9) status_line_is "$TESTPLAN" APPROVED && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
+         || REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row" ;;
+  esac
+  [ -z "$REASON" ]
+}
+
+# Artifact-on-disk backstop: after the phase, its output must exist, be
+# non-trivial, and carry the canonical state its verdict/route pair claims —
+# on the reject side too, so the durable record never denies a rejection.
 artifact_ok() { # $1 = phase, $2 = route
   case $1 in
-    2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && has_status_line "$TESTPLAN" ;;
-    3) [ "$2" != proceed ] || status_line_is "$TESTPLAN" READY ;;
+    2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && status_line_is "$TESTPLAN" DRAFT ;;
+    3) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" READY
+       else status_line_is "$TESTPLAN" DRAFT; fi ;;
     4) [ "$2" = testplan ] || status_line_is "$TESTPLAN" RED ;;
-    5) [ "$2" != proceed ] || status_line_is "$TESTPLAN" APPROVED ;;
-    6) [ -f "$PLAN" ] && [ "$(wc -c < "$PLAN")" -gt 400 ] && has_status_line "$PLAN" \
+    5) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" APPROVED
+       else status_line_is "$TESTPLAN" "REJECTED\($EXPECTED_REJ\)"; fi ;;
+    6) [ -f "$PLAN" ] && [ "$(wc -c < "$PLAN")" -gt 400 ] && status_line_is "$PLAN" RED \
          && ! has_gate_row "$PLAN" ;;   # the Plan Reviewer stamps the Gate, never the planner
-    7) [ "$2" != proceed ] || has_gate_row "$PLAN" ;;
+    7) if [ "$2" = proceed ]; then gate_row_ok "$PLAN"
+       else ! has_approved_gate "$PLAN"; fi ;;
     8) : ;;
-    9) [ "$2" != proceed ] || status_line_is "$PLAN" DONE ;;
+    9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
+       else ! status_line_is "$PLAN" DONE; fi ;;
   esac
 }
 
@@ -243,13 +326,13 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
   [ -n "$3" ] && notes="A previous verdict bounced this work back to you — read the notes in $3 and answer them point by point in the testplan Log. "
   case $1 in
     2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
-    3) printf 'Judge %s against %s and the repository, per your phase contract. Approve: set the canonical Status line to READY, append your Log entry, commit. Reject: append point-by-point notes to the Log, commit. Then write your routed verdict as single-line JSON to %s — {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}; approve pairs only with route "proceed", reject only with "testplan".' "$TESTPLAN" "$ADR" "$2" ;;
-    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log, set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s.' "$notes" "$TESTPLAN" "$2" ;;
-    5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: Status REJECTED(n), point-by-point Log notes, commit. Then write your routed verdict as single-line JSON to %s — approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$2" ;;
+    3) printf 'Judge %s against %s and the repository, per your phase contract. Approve: set the canonical Status line to READY, append your Log entry, commit. Reject: append point-by-point notes to the Log, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, these three keys, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "testplan".' "$TESTPLAN" "$ADR" "$2" ;;
+    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log, set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
+    5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
-    7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <date>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict as single-line JSON to %s — approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. Commit when green. If the plan cannot be implemented as written, do NOT improvise: log the reason in the testplan Log, commit, and write {"verdict":"blocked","route":"plan","notes":"<why>"} to %s.' "$notes" "$PLAN" "$2" ;;
-    9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict as single-line JSON to %s — approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
+    7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. Commit when green. If the plan cannot be implemented as written, do NOT improvise: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }
 
@@ -267,12 +350,16 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
   harness=$(phase_harness "$p")
   models=$(phase_models "$p")
   is_reviewer=0; case $p in 3|5|7|9) is_reviewer=1 ;; esac
+  EXPECTED_REJ=0
+  if [ "$is_reviewer" -eq 1 ]; then
+    read_int "rej.$p"; EXPECTED_REJ=$((RI + 1))
+  fi
 
   for model in $models; do
     tries=0
     while [ "$tries" -lt "$MAX_TRIES" ]; do
       tries=$((tries + 1))
-      d=$(bump dispatch)
+      bump dispatch; d=$BUMPED
       probe=$S/probes/p$p.d$d
       verdict=$S/verdicts/phase$p.d$d.json
       logf=$S/logs/phase$p.d$d.log
@@ -300,31 +387,43 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       route=proceed
       if [ -z "$fail" ]; then
         if [ -f "$verdict" ]; then
-          v=$(json_field "$verdict" verdict); route=$(json_field "$verdict" route)
-          if [ "$is_reviewer" -eq 1 ]; then
-            case $v in
-              approve) [ "$route" = proceed ] || fail="verdict approve with route '$route'" ;;
-              reject)  echo " $(reject_routes "$p") " | grep -qF " $route " \
-                         || fail="verdict reject with invalid route '$route' for phase $p" ;;
-              *) fail="invalid reviewer verdict '$v'" ;;
-            esac
+          if verdict_ok "$verdict"; then
+            v=$(json_field "$verdict" verdict); route=$(json_field "$verdict" route)
+            if [ "$is_reviewer" -eq 1 ]; then
+              case $v in
+                approve) [ "$route" = proceed ] || fail="verdict approve with route '$route'" ;;
+                reject)  echo " $(reject_routes "$p") " | grep -qF " $route " \
+                           || fail="verdict reject with invalid route '$route' for phase $p" ;;
+                *) fail="invalid reviewer verdict '$v'" ;;
+              esac
+            else
+              case $v in
+                blocked) [ "$route" = "$(producer_route "$p")" ] \
+                           || fail="blocked producer with invalid route '$route' for phase $p" ;;
+                *) fail="invalid producer verdict '$v' (only 'blocked' may be written)" ;;
+              esac
+            fi
           else
-            case $v in
-              blocked) [ "$route" = "$(producer_route "$p")" ] \
-                         || fail="blocked producer with invalid route '$route' for phase $p" ;;
-              *) fail="invalid producer verdict '$v' (only 'blocked' may be written)" ;;
-            esac
+            fail='verdict file is not the prescribed single-line JSON'
           fi
         elif [ "$is_reviewer" -eq 1 ]; then
           fail='reviewer ended without a verdict file'
         fi
       fi
-      [ -z "$fail" ] && { artifact_ok "$p" "$route" || fail='expected artifact/status missing, trivial, or malformed'; }
+      [ -z "$fail" ] && { artifact_ok "$p" "$route" || fail='expected artifact/status missing, trivial, or malformed for this route'; }
       [ -z "$fail" ] && [ "$(git rev-parse HEAD)" = "$snap" ] && fail='no commit (HEAD did not advance)'
       [ -z "$fail" ] && [ -n "$(git status --porcelain)" ] && fail='working tree not clean after the phase'
-      if [ -z "$fail" ] && [ -n "$ISSUE_REF" ]; then
-        git log --format=%B "$snap..HEAD" | grep -qF "$ISSUE_REF" \
-          || fail="tracker reference '$ISSUE_REF' missing from the phase's commit message(s)"
+      if [ -z "$fail" ]; then
+        # every commit of the phase carries the semantic prefix and the tracker
+        # reference — the audit trail holds commit by commit, not in aggregate
+        for c in $(git rev-list "$snap..HEAD"); do
+          git log -1 --format=%s "$c" | grep -qE '^(feat|fix|refactor|docs|test|chore)(\([^)]*\))?!?: ' \
+            || { fail="commit ${c} lacks a semantic prefix"; break; }
+          if [ -n "$ISSUE_REF" ]; then
+            git log -1 --format=%B "$c" | grep -qF "$ISSUE_REF" \
+              || { fail="commit ${c} missing tracker reference '$ISSUE_REF'"; break; }
+          fi
+        done
       fi
 
       if [ -z "$fail" ]; then
@@ -348,6 +447,8 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
 log "flight start — feature $FEATURE, entering phase $START (caps: $MAX_GATE_REJECTS/gate, $MAX_EDGES edges; policies: claude '$CLAUDE_POLICY', codex '$CODEX_POLICY')"
 PHASE=$START
 while :; do
+  entry_ok "$PHASE" \
+    || stop_flight "phase $PHASE entry precondition failed: $REASON"
   run_phase "$PHASE"
   if [ "$ROUTE" = proceed ]; then
     NOTES_FILE=''
@@ -356,11 +457,11 @@ while :; do
     continue
   fi
   # backward edge
-  edges=$(bump edges)
+  bump edges; edges=$BUMPED
   [ "$edges" -le "$MAX_EDGES" ] || stop_flight "global cap: backward edge $edges exceeds $MAX_EDGES"
   case $PHASE in
     3|5|7|9)
-      r=$(bump "rej.$PHASE")
+      bump "rej.$PHASE"; r=$BUMPED
       [ "$r" -le "$MAX_GATE_REJECTS" ] || stop_flight "gate cap: rejection $r on gate $PHASE exceeds $MAX_GATE_REJECTS"
       ;;
   esac

@@ -218,6 +218,10 @@ if [ "$MODE" = kit ]; then
       fail chapters "process chapter invariants broken:"
       printf '%s\n' "$problems" | grep -v '^$' | detail
     fi
+  else
+    # a missing directory is erosion, not a reason to skip: silence here once
+    # let a copy with no .ai/process at all report an all-green kit run
+    fail chapters ".ai/process missing or empty — the kit ships three chapters"
   fi
 
   # contract-names — pinned in the template's Toolchain first cells.
