@@ -89,13 +89,19 @@ log-fence-infostring	bin/autopilot-driver.sh	/if (n >= flen && blank(substr(body
 log-atx-max-six	bin/autopilot-driver.sh	/if (hn > 6) hn = 0/s@if (hn > 6) hn = 0@@	publication
 log-comment-not-opaque	bin/autopilot-driver.sh	/substr(body, 1, 4) == "<!--"/s@substr(body, 1, 4) == "<!--"@0@	publication
 log-html-allowed	bin/autopilot-driver.sh	/ch == "<") {/s@html = 1@html = 0@	publication
-log-last-line	bin/autopilot-driver.sh	/-ge 1 \] && \[ "\$LOG_LAST" -eq 1 \]/s@ && \[ "\$LOG_LAST" -eq 1 \]@@	publication
-green-whole-file	bin/autopilot-driver.sh	/if (head > 0 && line ~ GRX) green++/s@head > 0 && @@	publication
 phase2-log-shape	bin/autopilot-driver.sh	/# the Log every later phase appends to/s@log_shape_ok@:@	publication
-artifact4-prefix	bin/autopilot-driver.sh	/^    4) if/,/^    5)/s@&& log_shape_ok "\$TESTPLAN" && \[ "\$(impl_green_count "\$TESTPLAN")" -eq "\$ENTRY_GREEN" \]@\&\& :@	publication
-artifact8-prefix	bin/autopilot-driver.sh	/^    8) if/,/^    9)/s@&& log_shape_ok "\$TESTPLAN" && \[ "\$(impl_green_count "\$TESTPLAN")" -eq "\$ENTRY_GREEN" \]@\&\& :@	publication
-artifact8-no-new-row	bin/autopilot-driver.sh	/-gt "\$ENTRY_GREEN" \] && impl_green/s@.*@            status_line_is "\$TESTPLAN" APPROVED; fi ;;@	publication
-artifact8-position	bin/autopilot-driver.sh	/-gt "\$ENTRY_GREEN" \] && impl_green/s@ && impl_green "\$TESTPLAN"@@	publication
+artifact4-shape	bin/autopilot-driver.sh	/^    4) if/,/^    5)/s@&& log_shape_ok "\$TESTPLAN"@\&\& :@	publication
+artifact8-shape	bin/autopilot-driver.sh	/^    8) if/,/^    9)/s@&& log_shape_ok "\$TESTPLAN"$@\&\& :@	publication
+artifact8-proceed	bin/autopilot-driver.sh	/&& gate_row_ok "\$PLAN" && log_shape_ok "\$TESTPLAN"; fi ;;/s@.*@              || :; fi ;;@	publication
+stamp-not-written	bin/autopilot-driver.sh	/green_stamp "\$ACCEPTED_HEAD"/s@.*@          :@	publication
+proof-vacuous	bin/autopilot-driver.sh	/elif ! green_proof; then/s@green_proof@:@	publication
+proof-walk-any-path	bin/autopilot-driver.sh	/"\$gp" != "\$TESTPLAN"/s@; then@ \&\& false; then@	publication
+proof-any-parent	bin/autopilot-driver.sh	/grep -qxF "\$GREEN_KEY: \$FEATURE \$parent"/s@grep -qxF "\$GREEN_KEY: \$FEATURE \$parent"@grep -q "^\$GREEN_KEY: \$FEATURE "@	publication
+proof-body-grep	bin/autopilot-driver.sh	/git interpret-trailers --parse | grep/s@| git interpret-trailers --parse @@	publication
+proof-merge-allowed	bin/autopilot-driver.sh	/is a merge — the chain/s@; return 1 ;;@; parent=\$2 ;;@	publication
+proof-unbounded	bin/autopilot-driver.sh	/-lt "\$MAX_PROOF_WALK" \]; do/s@\[ "\$n" -lt "\$MAX_PROOF_WALK" \]@:@	publication
+reserved-key-off	bin/autopilot-driver.sh	/if commit_green_trailer "\$c" >\/dev\/null; then/s@commit_green_trailer "\$c" >/dev/null@false@	publication
+entry9-log-shape	bin/autopilot-driver.sh	/^    9) if/,/^  esac/s@elif ! log_shape_ok@elif ! : @	entry
 publication-clean-tree	bin/autopilot-driver.sh	/working tree not clean at publication time/s@stop_flight@:@	publication
 push-by-name	bin/autopilot-driver.sh	/^git push origin/s@origin "\$ACCEPTED_HEAD:refs/heads/feature/\$FEATURE"@-u origin "feature/\$FEATURE"@	publication
 nonce-check	bin/autopilot-driver.sh	/grep -qF "PREFLIGHT: \$nonce"/s@grep -qF "PREFLIGHT: \$nonce" "\$logf"@:@	entry

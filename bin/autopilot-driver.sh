@@ -31,8 +31,11 @@
 # phase launch — first phase, normal flow, or an -s relaunch — the artifacts
 # on disk must justify entering it. The only path into phase 8 is a plan
 # carrying the approved Gate row that only phase 7 writes; the only path into
-# phase 9 additionally carries the Implementation GREEN row on the testplan
-# Log that only phase 8 appends — implementation cannot be skipped by re-entry.
+# phase 9 additionally requires the driver's own phase-8 acceptance stamp —
+# an empty commit carrying the reserved Autopilot-Green trailer — reachable
+# from HEAD through commits that touched nothing but the two flight artifacts
+# (see "the completion proof" below): implementation cannot be skipped by
+# re-entry, nor ridden across later code changes.
 #
 # State lives under .ai/autopilot/<feature>/ (gitignored). Terminal statuses:
 #   DONE     pushed and draft PR opened                      exit 0
@@ -175,8 +178,9 @@ GH_BIN=${AP_GH_BIN:-gh}
 MAX_GATE_REJECTS=${AP_MAX_GATE_REJECTS:-2}   # the (N+1)th rejection on one gate stops
 MAX_EDGES=${AP_MAX_EDGES:-6}                 # global backward-edge cap per flight
 MAX_TRIES=${AP_MAX_TRIES:-3}                 # 1 attempt + 2 retries per model
+MAX_PROOF_WALK=${AP_MAX_PROOF_WALK:-64}      # commits phase 9's entry walks toward a stamp
 for v in "AP_MAX_GATE_REJECTS=$MAX_GATE_REJECTS" "AP_MAX_EDGES=$MAX_EDGES" \
-         "AP_MAX_TRIES=$MAX_TRIES"; do
+         "AP_MAX_TRIES=$MAX_TRIES" "AP_MAX_PROOF_WALK=$MAX_PROOF_WALK"; do
   is_count "${v#*=}" || die "${v%%=*} must be a positive integer ('${v#*=}')"
 done
 
@@ -199,7 +203,6 @@ LAST_VERDICT=''
 NOTES_FILE=''
 EXPECTED_REJ=0
 ENTRY_STATUS_ROW=''   # testplan Status row as the phase found it (blocked-producer backstop)
-ENTRY_GREEN=0         # canonical GREEN rows on the testplan Log as the phase found them
 ACCEPTED_HEAD=''      # HEAD of the last accepted phase — the only ref the ribbon may publish
 ACCEPTED_SNAP=''      # that phase's pre-dispatch snapshot, for the publication-time ancestry check
 
@@ -304,28 +307,93 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
   [ "$(grep -cE '^- \*\*Gate:\*\*' "$1")" -eq 1 ] || return 1
   grep -qE "$GATE_ROW" "$1"
 }
-# Phase 8's durable completion signal: without it, "ready for 9" and "ready
-# for 8" are observably identical and a direct -s 9 would skip implementation.
-# The signal is a row ON THE LOG — not those bytes anywhere in the file: an
-# inventory row, an example, or a manually misplaced line must not authorize
-# phase 9. Append-only (a re-run after a phase-9 reject adds another row), so
-# the predicate counts rows: at least one, never exactly one.
+# --- the completion proof: the driver's phase-8 acceptance stamp (R8-M1) ----
+# Without a durable completion signal, "ready for 9" and "ready for 8" are
+# observably identical and a direct -s 9 would skip implementation. Seven
+# review rounds kept that signal INSIDE the testplan as a canonical Markdown
+# row and taught the Log reader below to spot every way prose can hide one;
+# the eighth showed the medium itself is wrong: the Log is append-only and
+# phase 9 appends its own notes to it, so a row that must stay "the file's
+# last non-blank line" is destroyed by the very phase whose entry required it
+# — and a row is forever, so a cold -s 9 could ride a proof whose code had
+# changed underneath it.
 #
-# TWO CONDITIONS, and the first one is structural — four review rounds showed
-# that "recognize the row" alone is not decidable in Markdown:
+# The proof now lives where nothing can be written after it: a commit. When
+# the driver ACCEPTS phase 8 — verdict, backstops, wall, per-commit audit all
+# passed — it stamps an EMPTY commit whose trailer block carries
+#     Autopilot-Green: <feature> <sha>
+# with <sha> the accepted phase-8 tip, i.e. the stamp's own parent (a stamp
+# transplanted elsewhere in history proves nothing). Phase 9's entry walks
+# first-parent history back from HEAD: every commit until the stamp must have
+# touched NOTHING but the two flight artifacts — the reviewers' own write-set:
+# Log notes, gate stamps, documented Log repairs — and a merge, a quoted
+# path, or any other path refuses the walk with the commit named. So later
+# artifact appends never invalidate an honest proof (phase 9's own notes are
+# what broke the row version), while one code commit past the stamp does:
+# the code phase 9 judges must BE code the driver accepted.
 #
-#   1. POSITION. The row must be the file's LAST non-blank line. Phase 8 is
-#      the last phase that writes before phase 9 reads, so the contract can
-#      demand it (autopilot.md phase 8, the phase-8 prompt, the template).
-#      A canonical row that IS the last line cannot be inert text: every
-#      construct that could hide it — an HTML comment, a fenced block — has
-#      to be closed after it, and a closer is itself a line, so the row would
-#      not be last. This is the condition that does not depend on how much
-#      Markdown the reader below knows.
-#   2. SHAPE. Exactly one canonical Log heading, no section after it, and no
-#      container left open at end of file. This is what makes "last line"
-#      mean what it says, and it is what phases 2, 4 and 8 check on their own
-#      output, before any row exists.
+# Trailers are read back with git interpret-trailers --parse — the porcelain
+# parser — never grepped out of the message body, so a lookalike line in
+# prose proves nothing. The key is RESERVED: the stamp is written by the
+# driver AFTER acceptance, outside any phase's diff window, and any commit a
+# PHASE produces whose trailer block carries the key fails the attempt
+# (run_phase's per-commit audit). That is what makes the stamp the driver's
+# attestation instead of a model's claim. And the stamp exists only if every
+# check passed: a crash before it leaves no proof — fail-closed, rerun -s 8.
+GREEN_KEY=Autopilot-Green
+commit_green_trailer() { # $1 = sha -> its parsed trailer lines carrying the key
+  git log -1 --format=%B "$1" | git interpret-trailers --parse | grep "^$GREEN_KEY: "
+}
+green_stamp() { # $1 = the accepted phase-8 tip; record it as the empty stamp commit
+  git commit --allow-empty -q \
+      -m "chore: autopilot — phase 8 accepted ($FEATURE)${ISSUE_REF:+ ($ISSUE_REF)}" \
+      -m "$GREEN_KEY: $FEATURE $1" \
+    || stop_flight "could not write the phase-8 acceptance stamp — the implementation is committed, but phase 9 must not open without the driver's stamp"
+  log "phase 8 acceptance stamped over $1"
+}
+green_proof() { # the phase-9 authorization; GREEN_WHY set on refusal
+  GREEN_WHY=''
+  c=$(git rev-parse HEAD 2>/dev/null) \
+    || { GREEN_WHY='cannot resolve HEAD for the proof walk'; return 1; }
+  n=0
+  while [ "$n" -lt "$MAX_PROOF_WALK" ]; do
+    n=$((n + 1))
+    # shellcheck disable=SC2046
+    set -- $(git rev-list --parents -n 1 "$c" 2>/dev/null)
+    case $# in
+      2) parent=$2 ;;
+      0) GREEN_WHY="cannot read commit $c during the proof walk"; return 1 ;;
+      1) GREEN_WHY='reached the root of history without an acceptance stamp — phase 8 has not completed on this branch'; return 1 ;;
+      *) GREEN_WHY="commit $c is a merge — the chain from HEAD to the acceptance stamp must be linear flight history"; return 1 ;;
+    esac
+    if commit_green_trailer "$c" | grep -qxF "$GREEN_KEY: $FEATURE $parent"; then
+      return 0
+    fi
+    while IFS= read -r gp; do
+      [ -n "$gp" ] || continue
+      case $gp in
+        \"*) GREEN_WHY="commit $c touched a path git had to quote ($gp) — the proof walk refuses what it cannot read"; return 1 ;;
+      esac
+      if [ "$gp" != "$TESTPLAN" ] && [ "$gp" != "$PLAN" ]; then
+        GREEN_WHY="commit $c touched '$gp' after the last acceptance stamp — the code phase 9 would judge is not code the driver accepted (rerun -s 8)"
+        return 1
+      fi
+    done <<GREEN_EOF
+$(git -c core.quotePath=false diff --name-only --no-renames "$parent" "$c")
+GREEN_EOF
+    c=$parent
+  done
+  GREEN_WHY="no acceptance stamp within $MAX_PROOF_WALK commits of HEAD — phase 8's acceptance is too far behind to verify (rerun -s 8)"
+  return 1
+}
+
+# --- the Log's shape: the append interface every phase relies on -------------
+# The proof left the Markdown, but the Log is still where every phase appends
+# its notes and where the flight's audit trail lives, so its SHAPE is still
+# guarded: exactly one canonical Log heading, no section after it, and no
+# container left open at end of file. Phases 2, 4 and 8 check it on their own
+# output; phases 8 and 9 refuse a malformed Log at entry, because a phase
+# cannot append to — or read notes from — a Log whose scope is undecidable.
 #
 # The Log is NORMATIVE-LAST (autopilot.md, phase 2), and that is what makes
 # its scope decidable. Earlier rounds tried to find where the section ENDS —
@@ -353,10 +421,9 @@ gate_row_ok() { # exactly one Gate row, and it is the full canonical approved ro
 #     structure its own Log entries.
 #
 # REFUSED rather than modelled: any other line that starts with '<' (a raw
-# HTML block — <div>, <script>, <![CDATA[ — would make the row inert), and a
-# fenced block or comment still open at end of file (the file's structure is
-# then undecidable). Condition 1 covers everything else: whatever construct a
-# future reviewer invents, it has to be written after the row to hide it.
+# HTML block — <div>, <script>, <![CDATA[ — makes everything after it
+# unreadable), and a fenced block or comment still open at end of file (the
+# file's structure is then undecidable).
 #
 # That is also why phase 4 fences the RED output it pastes here (autopilot.md,
 # phase 4): real test output carries ruler lines ("------") that Markdown
@@ -369,14 +436,12 @@ LOG_AWK='
 function runlen(s, ch,   n) { n = 0; while (substr(s, n + 1, 1) == ch) n++; return n }
 function blank(s) { return s ~ /^[ \t]*$/ }
 BEGIN {
-  GRX = "^- \\*\\*Implementation:\\*\\* GREEN — [0-9][0-9][0-9][0-9]-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]), full suite \\+ typecheck \\(Implementer\\)$"
   fence = ""; flen = 0; comment = 0; html = 0
-  head = 0; dup = 0; tail = 0; green = 0; para = 0; lastnb = ""
+  head = 0; dup = 0; tail = 0; para = 0
   openline = 0; htmlline = 0; dupline = 0; tailline = 0   # where a refusal starts
 }
 {
   line = $0
-  if (!blank(line)) lastnb = line
   match(line, /^ */); ind = RLENGTH; body = substr(line, ind + 1)
   # opaque containers first: inside one, nothing counts
   if (comment) { if (index(line, "-->") > 0) comment = 0; para = 0; next }
@@ -422,7 +487,6 @@ BEGIN {
     if (head > 0) { if (!tailline) tailline = NR; tail = 1 }
     para = 0; next
   }
-  if (head > 0 && line ~ GRX) green++
   if (body == "" || body ~ /^([-*+]|[0-9]+[.)])([ \t]|$)/ || substr(body, 1, 1) == ">") para = 0
   else para = 1
 }
@@ -434,16 +498,14 @@ END {
   else if (head == 0) shape = "nohead"
   else if (dup) { shape = "dup"; bad = dupline }
   else if (tail) { shape = "tail"; bad = tailline }
-  printf "%s %d %d %d\n", shape, green, (lastnb ~ GRX) ? 1 : 0, bad
+  printf "%s %d\n", shape, bad
 }'
-log_scan() { # $1 = file -> LOG_SHAPE, LOG_GREEN, LOG_LAST, LOG_LINE (0 = no line
-             # to point at); 1 when there is no file to read
-  LOG_SHAPE=missing; LOG_GREEN=0; LOG_LAST=0; LOG_LINE=0
+log_scan() { # $1 = file -> LOG_SHAPE, LOG_LINE (0 = no line to point at);
+             # 1 when there is no file to read
+  LOG_SHAPE=missing; LOG_LINE=0
   [ -f "$1" ] || return 1
   scan=$(awk "$LOG_AWK" "$1") || return 1
-  LOG_SHAPE=${scan%% *}; scan=${scan#* }
-  LOG_GREEN=${scan%% *}; scan=${scan#* }
-  LOG_LAST=${scan%% *}; LOG_LINE=${scan##* }
+  LOG_SHAPE=${scan%% *}; LOG_LINE=${scan##* }
 }
 log_shape_ok() { log_scan "$1" && [ "$LOG_SHAPE" = ok ]; }
 log_shape_why() { # the refusal in the operator's words, pointing at the line that
@@ -460,20 +522,6 @@ log_shape_why() { # the refusal in the operator's words, pointing at the line th
     opencomment) echo "an HTML comment is opened and never closed (no '-->') — the file's structure is undecidable$at" ;;
     openfence)   echo "a fenced block is opened and never closed — a closing fence repeats the opening characters, at least as long, alone on its line$at" ;;
   esac
-}
-impl_green_count() { # canonical GREEN rows on the Log of a well-shaped testplan
-  if log_shape_ok "$1"; then echo "$LOG_GREEN"; else echo 0; fi
-}
-impl_green() { # the phase-9 authorization: a canonical row on the Log AND the
-               # file's last non-blank line is one (condition 1 above)
-  log_shape_ok "$1" && [ "$LOG_GREEN" -ge 1 ] && [ "$LOG_LAST" -eq 1 ]
-}
-impl_green_why() { # assumes impl_green just failed on a well-shaped file
-  if [ "$LOG_GREEN" -ge 1 ]; then
-    echo "the Implementation GREEN row is not the testplan's last non-blank line — phase 8's proof is only a proof where nothing can be written after it (repair: autopilot.md § Repairing a refused Log)"
-  else
-    echo "no Implementation GREEN row on the testplan's canonical Log — phase 8 has not completed on this testplan"
-  fi
 }
 
 # --- phase metadata ----------------------------------------------------------
@@ -589,15 +637,15 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
               && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
          REASON="need testplan APPROVED + plan RED + exactly one canonical approved Gate row"
        elif ! log_shape_ok "$TESTPLAN"; then
-         REASON="the testplan Log is malformed, so phase 8 could not leave its proof there: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
+         REASON="the testplan Log is malformed, so phase 8 cannot read its inputs or append its entry: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
        fi ;;
     9) if ! { adr_ok && nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
               && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; }; then
          REASON="phase 9 judges the implementation against plan + design record: need $ADR + testplan APPROVED + gated RED plan"
        elif ! log_shape_ok "$TESTPLAN"; then
-         REASON="the testplan Log is malformed, so no row in it proves anything: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
-       elif ! impl_green "$TESTPLAN"; then
-         REASON=$(impl_green_why)
+         REASON="the testplan Log is malformed, so phase 9 can neither read nor append it: $(log_shape_why "$TESTPLAN") (repair: autopilot.md § Repairing a refused Log)"
+       elif ! green_proof; then
+         REASON=$GREEN_WHY
        fi ;;
   esac
   [ -z "$REASON" ]
@@ -609,7 +657,7 @@ entry_ok() { # $1 = phase -> 0/1; REASON set on failure
 # A BLOCKED producer is checked as strictly as a working one, on its INPUT:
 # a stop is exactly when the artifacts become the operator's recovery
 # interface, so they must still say what the lifecycle and the route say.
-# ENTRY_STATUS_ROW / ENTRY_GREEN are the phase's entry snapshot (run_phase).
+# ENTRY_STATUS_ROW is the phase's entry snapshot (run_phase).
 artifact_ok() { # $1 = phase, $2 = route
   case $1 in
     2) [ -f "$TESTPLAN" ] && [ "$(wc -c < "$TESTPLAN")" -gt 400 ] && status_line_is "$TESTPLAN" DRAFT \
@@ -618,7 +666,7 @@ artifact_ok() { # $1 = phase, $2 = route
        else status_line_is "$TESTPLAN" DRAFT; fi ;;
     4) if [ "$2" = testplan ]; then   # blocked: the READY/REJECTED(n) input must survive untouched
          nontrivial "$TESTPLAN" 400 && [ "$(status_row "$TESTPLAN")" = "$ENTRY_STATUS_ROW" ] \
-           && log_shape_ok "$TESTPLAN" && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
+           && log_shape_ok "$TESTPLAN"
        else status_line_is "$TESTPLAN" RED; fi ;;
     5) if [ "$2" = proceed ]; then status_line_is "$TESTPLAN" APPROVED
        else status_line_is "$TESTPLAN" "REJECTED\($EXPECTED_REJ\)"; fi ;;
@@ -626,12 +674,14 @@ artifact_ok() { # $1 = phase, $2 = route
          && ! has_gate_row "$PLAN" ;;   # the Plan Reviewer stamps the Gate, never the planner
     7) if [ "$2" = proceed ]; then gate_row_ok "$PLAN"
        else status_line_is "$PLAN" RED && ! has_gate_row "$PLAN"; fi ;;
-    8) if [ "$2" = plan ]; then   # blocked: gated inputs intact, and no GREEN row claimed
+    8) if [ "$2" = plan ]; then   # blocked: gated inputs intact
          nontrivial "$TESTPLAN" 400 && status_line_is "$TESTPLAN" APPROVED \
            && nontrivial "$PLAN" 400 && status_line_is "$PLAN" RED && gate_row_ok "$PLAN" \
-           && log_shape_ok "$TESTPLAN" && [ "$(impl_green_count "$TESTPLAN")" -eq "$ENTRY_GREEN" ]
-       else # the phase left a NEW row, and left it where it proves something
-            [ "$(impl_green_count "$TESTPLAN")" -gt "$ENTRY_GREEN" ] && impl_green "$TESTPLAN"; fi ;;
+           && log_shape_ok "$TESTPLAN"
+       else # gated inputs intact and the Log still appendable — the proof is
+            # the driver's own stamp, written AFTER acceptance, never read here
+            status_line_is "$TESTPLAN" APPROVED && status_line_is "$PLAN" RED \
+              && gate_row_ok "$PLAN" && log_shape_ok "$TESTPLAN"; fi ;;
     9) if [ "$2" = proceed ]; then status_line_is "$PLAN" DONE
        else status_line_is "$PLAN" RED && gate_row_ok "$PLAN"; fi ;;
   esac
@@ -648,7 +698,7 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
-    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", which is the file'"'"'s last section: nowhere else, never under a heading of your own, never inside a fenced block or an HTML comment — and write it as the FILE'"'"'S LAST NON-BLANK LINE: anything else you log for this phase goes before it, nothing at all after it (a row nothing follows cannot be inert text — that is what makes it a proof). Then commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
+    8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append your Log entry — the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" — under the testplan'"'"'s "## 6. Log (append-only)" heading, its last section, then commit everything. That row is the flight'"'"'s narrative record; the PROOF of completion is an acceptance stamp the driver itself commits after checking your work — so never write an %s trailer in any commit message: that key is reserved to the driver, and a commit carrying it fails the attempt. If the plan cannot be implemented as written, do NOT improvise: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$GREEN_KEY" "$2" ;;
     9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. You never edit code: your write-set is the plan and the testplan only — the driver refuses any other path in your diff. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }
@@ -675,7 +725,6 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
   # per phase: a failed attempt is reset to the same snapshot, so it holds for
   # every try on every ladder rung.
   ENTRY_STATUS_ROW=$(status_row "$TESTPLAN" || :)
-  ENTRY_GREEN=$(impl_green_count "$TESTPLAN")
 
   for model in $models; do
     tries=0
@@ -746,13 +795,18 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       [ -z "$fail" ] && { wall_ok "$p" "$snap" || fail="wall: $WALL_WHY"; }
       if [ -z "$fail" ]; then
         # every commit of the phase carries the semantic prefix and the tracker
-        # reference — the audit trail holds commit by commit, not in aggregate
+        # reference — the audit trail holds commit by commit, not in aggregate —
+        # and never the reserved stamp trailer: the acceptance stamp is the
+        # driver's own act, so a phase commit carrying the key is a forgery
         for c in $(git rev-list "$snap..HEAD"); do
           git log -1 --format=%s "$c" | grep -qE '^(feat|fix|refactor|docs|test|chore)(\([^)]*\))?!?: ' \
             || { fail="commit ${c} lacks a semantic prefix"; break; }
           if [ -n "$ISSUE_REF" ]; then
             git log -1 --format=%B "$c" | grep -qF "$ISSUE_REF" \
               || { fail="commit ${c} missing tracker reference '$ISSUE_REF'"; break; }
+          fi
+          if commit_green_trailer "$c" >/dev/null; then
+            fail="commit ${c} carries the reserved $GREEN_KEY trailer — the acceptance stamp is the driver's own act, never a phase's"; break
           fi
         done
       fi
@@ -765,6 +819,12 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
         # harness can still move a ref after the checks above have run).
         ACCEPTED_HEAD=$(git rev-parse HEAD)
         ACCEPTED_SNAP=$snap
+        # Phase 8 accepted on its working route: stamp the acceptance NOW —
+        # the durable proof phase 9's entry requires (the completion proof
+        # above). A blocked phase 8 routes 'plan' and is never stamped.
+        if [ "$p" -eq 8 ] && [ "$route" = proceed ]; then
+          green_stamp "$ACCEPTED_HEAD"
+        fi
         log "phase $p ok — route: $route"
         return 0
       fi

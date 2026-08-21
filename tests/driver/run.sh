@@ -27,7 +27,8 @@ PASSED=0; FAILED=0
 chk() { d=$1; shift; if "$@" >/dev/null 2>&1; then PASSED=$((PASSED+1)); echo "ok   - $d"; else FAILED=$((FAILED+1)); echo "FAIL - $d"; fi; }
 chknot() { d=$1; shift; if "$@" >/dev/null 2>&1; then FAILED=$((FAILED+1)); echo "FAIL - $d"; else PASSED=$((PASSED+1)); echo "ok   - $d"; fi; }
 
-scrub_env() { unset AP_MAX_TRIES AP_MAX_EDGES AP_MAX_GATE_REJECTS AP_CLAUDE_ARGS AP_CODEX_ARGS \
+scrub_env() { unset AP_MAX_TRIES AP_MAX_EDGES AP_MAX_GATE_REJECTS AP_MAX_PROOF_WALK \
+                    AP_CLAUDE_ARGS AP_CODEX_ARGS \
                     STUB_SCENARIO_DIR STUB_BAD_PREFLIGHT_PHASES STUB_BAD_NONCE_MODELS \
                     STUB_GH_FAIL 2>/dev/null || true; }
 
@@ -95,15 +96,15 @@ seed_plan() { # $1 = 'gated' | 'ungated' (Status RED either way)
   return 0
 }
 seed_commit() { git add -A && git commit -qm 'feat: demo seeded artifacts (TEST-1)'; }
-seed_impl_green() { # the durable phase-8 completion row on the testplan Log
-  printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> .ai/plans/demo.testplan.md
+seed_green_stamp() { # the driver's phase-8 acceptance stamp, as an accepted run
+                     # leaves it: an empty commit whose trailer names its parent
+  git commit -q --allow-empty \
+    -m 'chore: autopilot — phase 8 accepted (demo) (TEST-1)' \
+    -m "Autopilot-Green: demo $(git rev-parse HEAD)"
 }
-seed_impl_green_outside_log() { # the same row, placed ABOVE the Log heading (R4-B1)
-  awk '/^## 6\. Log \(append-only\)$/ && !d {
-         print "- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)"
-         print ""; d = 1
-       } { print }' .ai/plans/demo.testplan.md > .ai/plans/demo.testplan.tmp \
-    && mv .ai/plans/demo.testplan.tmp .ai/plans/demo.testplan.md
+seed_impl_green() { # the Implementer's NARRATIVE completion row on the testplan
+                    # Log (R8-M1: a record, no longer the proof)
+  printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> .ai/plans/demo.testplan.md
 }
 seed_impl_green_after_section() { # the row under a LATER H2 — outside the Log section
   printf '\n## 7. Appendix\n\n- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' \
@@ -223,6 +224,15 @@ chk 'happy: gh called with the exact publication argv' \
   grep -qx -- '--base' "$S/../gh-args"
 chk 'happy: gh targeted develop <- feature/demo' \
   sh -c 'grep -qx develop "$1" && grep -qx feature/demo "$1"' _ "$S/../gh-args"
+stamp_count() { git -C "$1" log --format=%B "$2" | grep -c '^Autopilot-Green: demo '; }
+happy_stamp_empty() { # exactly one stamp on the published branch, and it is empty
+  hs=$(git -C "$ORIGIN" log --format='%H %s' refs/heads/feature/demo | grep -F 'phase 8 accepted' | awk '{print $1}')
+  [ "$(printf '%s' "$hs" | grep -c .)" -eq 1 ] \
+    && [ -z "$(git -C "$ORIGIN" diff-tree --no-commit-id --name-only -r "$hs")" ]
+}
+chk 'happy: exactly one acceptance stamp published (R8-M1)' \
+  test "$(stamp_count "$ORIGIN" refs/heads/feature/demo)" -eq 1
+chk 'happy: the acceptance stamp is an empty commit' happy_stamp_empty
 
 echo '# bounce: gate 5 rejects once with REJECTED(1), then approves'
 scrub_env; make_flight bounce
@@ -716,9 +726,9 @@ run_driver -s 9
 chk 'matrix -s 9 without design record: refused' log_has 'phase 9 entry precondition failed'
 
 scrub_env; make_flight m9v
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'matrix -s 9 (gated + Implementation GREEN row): DONE' st DONE
+chk 'matrix -s 9 (gated + acceptance stamp): DONE' st DONE
 chk 'matrix -s 9 ran only the final review' test "$(grep -c -- 'ok — route: proceed' "$S/driver.log")" -eq 1
 
 scrub_env; make_flight m9i2
@@ -727,27 +737,16 @@ run_driver -s 9
 chk 'matrix -s 9 freshly gated, no implementation: refused' log_has 'phase 9 entry precondition failed'
 chk 'matrix -s 9 nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
-echo '# R4-B1: the GREEN row authorizes phase 9 only from inside the canonical Log'
-scrub_env; make_flight b1out
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_outside_log && seed_plan gated && seed_commit)
-run_driver -s 9
-chk 'GREEN row above the Log heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
-chk 'GREEN row above the Log heading: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
-
+echo '# the Log shape gates phase 9 even when the acceptance stamp is present'
 scrub_env; make_flight b1dup
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_second_log_head && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_second_log_head && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'two Log headings: -s 9 refused' log_has 'phase 9 entry precondition failed'
 
 scrub_env; make_flight b1nohead
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_no_log_head && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_no_log_head && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'no canonical Log heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
-
-scrub_env; make_flight b1two
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_impl_green && seed_plan gated && seed_commit)
-run_driver -s 9
-chk 'two GREEN rows on the Log (append-only): DONE' st DONE
 
 echo '# R4-B2: the ribbon publishes the reviewed commit, or nothing at all'
 scrub_env; make_flight b2reset
@@ -772,7 +771,7 @@ printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
   done ) >/dev/null 2>&1 &
 EOF
 STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 published_is_reviewed() { # origin holds the reviewed sha, or nothing was published
   o=$(git -C "$ORIGIN" rev-parse --verify -q refs/heads/feature/demo || echo none)
@@ -783,7 +782,7 @@ chk 'delayed branch reset: no DONE over an unpublished ref' \
   sh -c '[ "$(cat "$1/status")" != DONE ] || git -C "$2" show-ref --verify -q refs/heads/feature/demo' _ "$S" "$ORIGIN"
 
 scrub_env; make_flight b2hook
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp
  cat > .git/hooks/pre-push <<'EOF'
 #!/bin/sh
 # moves the branch out from under the push, after the driver's checks ran
@@ -805,7 +804,7 @@ git rev-parse HEAD > "$FLIGHT_DIR/reviewed-sha"
 printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
 EOF
 STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'publication: flight completed' st DONE
 # git names the SOURCE of the refspec in its push output: pushing the reviewed
@@ -830,30 +829,35 @@ chk 'blocked phase 8 that degraded the plan: STOPPED' st STOPPED
 chk 'blocked phase 8 that degraded the plan: backstop fired' log_has 'expected artifact/status'
 chknot 'blocked phase 8 that degraded the plan: no backward edge counted' log_has 'backward edge'
 
+# R8-M1: the acceptance trailer is the driver's own key — a phase that writes
+# it in any commit message is refused, whatever else the commit did right.
 scrub_env; make_flight m1p8green
 SC=$BASE/sc-m1p8green; mkdir -p "$SC"
 cat > "$SC/phase8" <<'EOF'
-printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
-git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
-printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+echo 'impl stub' >> src.txt
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)' -m 'Autopilot-Green: demo self-stamped'
 EOF
 AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
 (cd "$G" && seed_gated_artifacts gated)
 run_driver -s 8
-chk 'blocked phase 8 claiming GREEN: STOPPED' st STOPPED
-chk 'blocked phase 8 claiming GREEN: backstop fired' log_has 'expected artifact/status'
+chk 'phase 8 forging the acceptance trailer: STOPPED' st STOPPED
+chk 'phase 8 forging the acceptance trailer: the reserved key is named' log_has 'reserved Autopilot-Green trailer'
+chk 'phase 8 forging the acceptance trailer: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
+# R8-M1: the narrative row is optional prose now — the driver's stamp, written
+# at acceptance, is what phase 9 reads, so a rowless honest phase 8 flies.
 scrub_env; make_flight m1stale
 SC=$BASE/sc-m1stale; mkdir -p "$SC"
 cat > "$SC/phase8" <<'EOF'
-echo 'code without a GREEN row' >> src.txt
+echo 'code without a narrative row' >> src.txt
 git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
 EOF
-AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
 run_driver -s 8
-chk 'phase 8 riding an older GREEN row: STOPPED' st STOPPED
-chk 'phase 8 riding an older GREEN row: backstop fired' log_has 'expected artifact/status'
+chk 'phase 8 without a narrative row: the driver stamps, the flight completes' st DONE
+chk 'phase 8 without a narrative row: the stamp is in the published history' \
+  test "$(stamp_count "$ORIGIN" refs/heads/feature/demo)" -eq 1
 
 scrub_env; make_flight m1p8ok
 SC=$BASE/sc-m1p8ok; mkdir -p "$SC"
@@ -887,18 +891,64 @@ run_driver -s 4
 chk 'blocked phase 4 that moved the status: STOPPED' st STOPPED
 chk 'blocked phase 4 that moved the status: backstop fired' log_has 'expected artifact/status'
 
-scrub_env; make_flight m1p4green
-SC=$BASE/sc-m1p4green; mkdir -p "$SC"
+# A blocked producer may not leave the Log unreadable: the artifacts are the
+# operator's recovery interface at exactly that moment.
+scrub_env; make_flight m1p4shape
+SC=$BASE/sc-m1p4shape; mkdir -p "$SC"
 cat > "$SC/phase4" <<'EOF'
-printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+printf '\nAppendix\n--------\n\n- gap notes outside the Log\n' >> "$TESTPLAN"
 git add -A && git commit -qm 'docs: demo transcription blocked (TEST-1)'
-printf '{"verdict":"blocked","route":"testplan","notes":"ambiguous inventory row"}' > "$VERDICT"
+printf '{"verdict":"blocked","route":"testplan","notes":"case 7 has no expected value"}' > "$VERDICT"
 EOF
 AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
 (cd "$G" && seed_testplan READY && seed_commit)
 run_driver -s 4
-chk 'blocked phase 4 claiming GREEN: STOPPED' st STOPPED
-chk 'blocked phase 4 claiming GREEN: backstop fired' log_has 'expected artifact/status'
+chk 'blocked phase 4 leaving a malformed Log: STOPPED' st STOPPED
+chk 'blocked phase 4 leaving a malformed Log: backstop fired' log_has 'expected artifact/status'
+
+scrub_env; make_flight m1p8shape
+SC=$BASE/sc-m1p8shape; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+printf '\nAppendix\n--------\n\n- blocked notes outside the Log\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo implementation blocked (TEST-1)'
+printf '{"verdict":"blocked","route":"plan","notes":"cannot implement"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'blocked phase 8 leaving a malformed Log: STOPPED' st STOPPED
+chk 'blocked phase 8 leaving a malformed Log: backstop fired' log_has 'expected artifact/status'
+
+# An accepted phase 8 may not degrade its gated inputs on the way out —
+# and a refused attempt is never stamped.
+scrub_env; make_flight p8degrade
+SC=$BASE/sc-p8degrade; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DRAFT/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'phase 8 that degraded the testplan status: STOPPED' st STOPPED
+chk 'phase 8 that degraded the testplan status: backstop fired' log_has 'expected artifact/status'
+chknot 'phase 8 that degraded the testplan status: never stamped' log_has 'acceptance stamped'
+
+# The reserved key holds on every phase, not just the Implementer's.
+scrub_env; make_flight m1p4green
+SC=$BASE/sc-m1p4green; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** RED/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+printf -- '- stub: tests transcribed, RED verified\n' >> "$TESTPLAN"
+echo 'test stub' >> tests.txt
+git add -A && git commit -qm 'test: demo red tests (TEST-1)' -m 'Autopilot-Green: demo self-stamped'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 4
+chk 'phase 4 forging the acceptance trailer: STOPPED' st STOPPED
+chk 'phase 4 forging the acceptance trailer: the reserved key is named' log_has 'reserved Autopilot-Green trailer'
 
 echo '# R4-M3: the phase -> harness/model matrix is asserted, not assumed'
 scrub_env; make_flight dispatchmatrix
@@ -939,24 +989,24 @@ chk 'NUL inside a routing token: strict grammar fired' log_has 'not the prescrib
 
 echo '# R5-B1: the Log scope ends at the next H2, not at end of file'
 scrub_env; make_flight b1sect
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_section && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_section && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'GREEN row under a later H2: -s 9 refused' log_has 'phase 9 entry precondition failed'
-chk 'GREEN row under a later H2: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+chk 'a section after the Log: -s 9 refused even with a stamp' log_has 'phase 9 entry precondition failed'
+chk 'a section after the Log: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 scrub_env; make_flight b1sub
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_under_subheading && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_under_subheading && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'GREEN row under a deeper heading inside the Log: DONE' st DONE
+chk 'a deeper heading inside the Log is legal shape: DONE' st DONE
 
 scrub_env; make_flight tmplshape
 (cd "$G" \
   && sed 's/^> \*\*Status:\*\*.*/> **Status:** APPROVED/' "$KIT/.ai/templates/test_plan_template.md" \
        > .ai/plans/demo.testplan.md \
-  && seed_impl_green && seed_plan gated && seed_commit)
+  && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 # The shipped template ends its Log with an HTML comment, not a heading, and
-# phase 8 appends with >>: on that real shape the row must still be in scope.
+# phase 8 appends with >>: that real shape must pass the shape gate.
 chk 'testplan shaped like the shipped template: -s 9 accepted' st DONE
 
 echo '# phase 2 must leave the canonical Log heading behind'
@@ -1006,30 +1056,24 @@ chk 'ladder rung completes the phase: exact primary-then-rung dispatch order' la
 
 echo '# R6-B1: the Log is normative-LAST — no heading form may open a section after it'
 scrub_env; make_flight b1setext
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_setext && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_setext && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'GREEN row under a Setext heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
-chk 'GREEN row under a Setext heading: the shape is named, not the row' log_has 'last section'
-chk 'GREEN row under a Setext heading: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+chk 'a Setext heading after the Log: -s 9 refused even with a stamp' log_has 'phase 9 entry precondition failed'
+chk 'a Setext heading after the Log: the shape is named' log_has 'last section'
+chk 'a Setext heading after the Log: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 scrub_env; make_flight b1indent
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_indented_atx && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_after_indented_atx && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'GREEN row under an indented ATX heading: -s 9 refused' log_has 'phase 9 entry precondition failed'
-chk 'GREEN row under an indented ATX heading: the shape is named' log_has 'last section'
+chk 'an indented ATX heading after the Log: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'an indented ATX heading after the Log: the shape is named' log_has 'last section'
 
 scrub_env; make_flight b1fenced
-(cd "$G" && seed_testplan APPROVED && seed_log_fenced_output && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_log_fenced_output && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-# The canary for the fix itself: a real RED paste — ruler lines, a '## ' line —
-# is opaque text inside its fence, so an honest testplan still flies.
+# The canary: a real RED paste — ruler lines, a '## ' line — is opaque text
+# inside its fence, so an honest testplan still flies.
 chk 'fenced RED output in the Log: -s 9 accepted' st DONE
-
-scrub_env; make_flight b1fencedgreen
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_fenced && seed_plan gated && seed_commit)
-run_driver -s 9
-chk 'GREEN row inside a fenced block: -s 9 refused' log_has 'phase 9 entry precondition failed'
-chk 'GREEN row inside a fenced block: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 scrub_env; make_flight b1p2tail
 SC=$BASE/sc-b1p2tail; mkdir -p "$SC"
@@ -1108,8 +1152,8 @@ STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
 run_driver
 chk 'final review reject: still DONE' st DONE
 chk 'final review reject: routed 9 -> 8' log_has 'phase 9 -> 8 (route: implementation)'
-chk 'final review reject: the second implementation added its own GREEN row' \
-  test "$(grep -c -- '^- \*\*Implementation:\*\* GREEN' "$G/.ai/plans/demo.testplan.md")" -eq 2
+chk 'final review reject: each accepted implementation earned its own stamp' \
+  test "$(stamp_count "$G" feature/demo)" -eq 2
 
 echo '# R6-m2: the report is the recovery handoff — counters, journey, last verdict'
 chk 'report: the real counters, not zeros' \
@@ -1283,78 +1327,79 @@ chk 'ladder re-entry: exact dispatch sequence across the bounce' reentry_matrix_
 chk 'ladder re-entry: the actor saw every dispatch the driver made' \
   test "$(cat "$S/dispatch")" -eq "$(wc -l < "$G/.ai/autopilot/dispatches")"
 
-echo '# R7-B1: no Markdown container can carry the completion proof'
-forged_green_refused() { # $1 = scenario, $2 = seed function, $3 = label
+echo '# R8-M1: no Markdown text can authorize phase 9 — only the driver stamp'
+# The strongest textual claim there is — the old proof itself, a canonical row
+# as the file's last non-blank line — is narrative without a stamp.
+scrub_env; make_flight nostamprow
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'canonical row as the last line, no stamp: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'canonical row as the last line, no stamp: the missing stamp is named' \
+  log_has 'phase 8 has not completed on this branch'
+chk 'canonical row as the last line, no stamp: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# Rows inside legal, CLOSED containers are legal prose — and equally not proof.
+scrub_env; make_flight nostamphidden
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_in_comment && seed_impl_green_in_long_fence \
+   && seed_impl_green_infostring_close && seed_impl_green_fenced && seed_note_after_impl_green \
+   && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'rows in every legal container, no stamp: -s 9 refused' \
+  log_has 'phase 8 has not completed on this branch'
+
+echo '# the Log SHAPE still gates phase 9 — a stamp does not excuse an unreadable Log'
+shape_refused() { # $1 = scenario, $2 = seed function, $3 = label
   scrub_env; make_flight "$1"
-  (cd "$G" && seed_testplan APPROVED && "$2" && seed_plan gated && seed_commit)
+  (cd "$G" && seed_testplan APPROVED && "$2" && seed_plan gated && seed_commit && seed_green_stamp)
   run_driver -s 9
   chk "$3: -s 9 refused" log_has 'phase 9 entry precondition failed'
   chk "$3: STOPPED" st STOPPED
   chk "$3: nothing pushed" test -z "$(git -C "$ORIGIN" for-each-ref)"
 }
-# The three constructs the seventh review published as publication bypasses:
-# each renders the row as hidden or code text, and each used to reach DONE.
-forged_green_refused b1comment  seed_impl_green_in_comment        'GREEN row inside an HTML comment'
-forged_green_refused b1longf    seed_impl_green_in_long_fence     'GREEN row fenced by a longer fence'
-forged_green_refused b1infostr  seed_impl_green_infostring_close  'GREEN row under an info-string closer'
-# …and the shapes that answer them: a container left open, so the row IS the
-# last line but still inert, and raw HTML, which the reader refuses to read.
-forged_green_refused b1opencom  seed_impl_green_open_comment      'GREEN row in an unclosed comment'
-forged_green_refused b1openfen  seed_impl_green_open_fence        'GREEN row in an unclosed fence'
-forged_green_refused b1rawhtml  seed_impl_green_raw_html          'GREEN row after a raw HTML block'
-# The position condition, on its own: an honest row stops proving anything the
-# moment something is written past it.
-forged_green_refused b1pastrow  seed_note_after_impl_green        'a note written past the GREEN row'
-# The two closing rules, each where it is the only thing standing: with the row
-# as the last line, only the opener's length — and the closer's empty info
-# string — keep these fences open, and an open fence is a refusal.
-forged_green_refused b1longopen seed_impl_green_long_fence_open   'GREEN row under a shorter inner fence'
-forged_green_refused b1infoopen seed_impl_green_infostring_open   'GREEN row under an info-string closer, unclosed'
-# Seven hashes are not a heading in Markdown, so the ruler under them opens a
-# section — the row sits outside the Log even though nothing follows it.
-forged_green_refused b1deepatx  seed_impl_green_after_deep_atx    'GREEN row under a ruler below a seven-hash line'
+shape_refused b1opencom  seed_impl_green_open_comment    'a comment never closed'
+shape_refused b1openfen  seed_impl_green_open_fence      'a fence never closed'
+shape_refused b1rawhtml  seed_impl_green_raw_html        'a raw HTML block in the Log'
+shape_refused b1longopen seed_impl_green_long_fence_open 'a shorter inner fence leaves the block open'
+shape_refused b1infoopen seed_impl_green_infostring_open 'an info-string closer leaves the block open'
+shape_refused b1deepatx  seed_impl_green_after_deep_atx  'a ruler below a seven-hash line opens a section'
 
 scrub_env; make_flight b1why
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_open_fence && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_open_fence && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
-chk 'unclosed container: the refusal names the container, not the row' log_has 'never closed'
+chk 'unclosed container: the refusal names the container' log_has 'never closed'
 
 scrub_env; make_flight b1whyhtml
-(cd "$G" && seed_testplan APPROVED && seed_impl_green_raw_html && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green_raw_html && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'raw HTML: the refusal says it is refused, not misread' log_has "a line starts with '<'"
 
-scrub_env; make_flight b1whypos
-(cd "$G" && seed_testplan APPROVED && seed_note_after_impl_green && seed_plan gated && seed_commit)
-run_driver -s 9
-chk 'proof written past: the refusal names the position, not the row' log_has 'last non-blank line'
-
 scrub_env; make_flight b1okcomment
-(cd "$G" && seed_testplan APPROVED && seed_log_comment_then_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_log_comment_then_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 # The counterweight: comments are modelled, not refused — the shipped
 # template's Log carries them, so an honest testplan must still fly.
 chk 'an HTML comment inside the Log is legitimate: -s 9 accepted' st DONE
 
+# R8-M1 dissolves the phase-8/phase-9 contradiction: writing after the row is
+# legitimate — the Log is append-only for EVERY phase, the proof lives in the
+# driver's stamp, not in a position no later phase may disturb.
 scrub_env; make_flight b1p8pos
 SC=$BASE/sc-b1p8pos; mkdir -p "$SC"
 cat > "$SC/phase8" <<'EOF'
 echo "impl stub" >> src.txt
 printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
-printf -- '- stub: a note written after the proof\n' >> "$TESTPLAN"
+printf -- '- stub: a note written after the narrative row\n' >> "$TESTPLAN"
 git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
 EOF
-AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
 (cd "$G" && seed_gated_artifacts gated)
 run_driver -s 8
-chk 'phase 8 wrote past its own proof: the attempt is refused' log_has 'expected artifact/status'
-chk 'phase 8 wrote past its own proof: STOPPED' st STOPPED
-chknot 'phase 8 wrote past its own proof: phase 9 never launched' log_has 'phase 9 (Final Reviewer)'
+chk 'phase 8 logging after its narrative row: accepted, stamped, DONE' st DONE
 
 echo '# R7-M1: a Log refused for its shape has a repair, and the repair flies'
 scrub_env; make_flight logrepair
 (cd "$G" && seed_testplan APPROVED && seed_log_unfenced_output && seed_impl_green \
-   && seed_plan gated && seed_commit)
+   && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'unfenced pasted output: -s 9 refused' log_has 'phase 9 entry precondition failed'
 chk 'unfenced pasted output: the shape is named' log_has 'last section'
@@ -1426,7 +1471,7 @@ git add -A && git commit -qm 'docs: demo final review (TEST-1)'
 printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
 EOF
 AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'reviewer wrote code: STOPPED' st STOPPED
 chk 'reviewer wrote code: the wall names role and file' log_has "Final Reviewer touched 'src.txt'"
@@ -1453,7 +1498,7 @@ else
 fi
 EOF
 STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp)
 run_driver -s 9
 chk 'walled attempt retried: DONE on the clean retry' st DONE
 chk 'walled attempt retried: the violation is in the journey' log_has 'wall:'
@@ -1572,23 +1617,73 @@ run_driver -s 8
 chk 'undecidable path: STOPPED' st STOPPED
 chk 'undecidable path: refused as unreadable, not guessed' log_has 'refuses what it cannot read'
 
-echo '# R8-M2: a phase-8 row outside the Log is not the new row phase 8 must add'
-scrub_env; make_flight m2outrow
-SC=$BASE/sc-m2outrow; mkdir -p "$SC"
-cat > "$SC/phase8" <<'EOF'
-echo 'impl stub' >> src.txt
-awk '/^## 6\. Log \(append-only\)$/ && !d {
-       print "- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)"
-       print ""; d = 1
-     } { print }' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
-git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
-EOF
-AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
-(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
-run_driver -s 8
-chk 'new row above the Log, stale row last: the attempt is refused' log_has 'expected artifact/status'
-chk 'new row above the Log, stale row last: STOPPED' st STOPPED
-chk 'new row above the Log, stale row last: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+echo '# R8-M1: the proof walk — artifact appends survive the stamp, code commits refuse it'
+# The false negative the row-proof had: phase 9 logs its notes and the flight
+# stops; a cold -s 9 must still re-enter, because only artifacts changed since
+# the stamp — appending to the Log no longer destroys the proof.
+scrub_env; make_flight s9cold
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp \
+  && printf -- '- 2026-08-15 · Final Reviewer — notes from a stopped final review\n' >> .ai/plans/demo.testplan.md \
+  && git add -A && git commit -qm 'docs: demo final review notes (TEST-1)')
+run_driver -s 9
+chk 'artifact-only commits after the stamp: -s 9 flies to DONE' st DONE
+
+# The false positive (round-4 residue, closed): code committed after the stamp
+# means the code phase 9 would judge is NOT the code the driver accepted.
+scrub_env; make_flight s9stale
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp \
+  && echo 'a manual hotfix nobody reviewed' >> src.txt \
+  && git add -A && git commit -qm 'fix: demo manual hotfix (TEST-1)')
+run_driver -s 9
+chk 'a code commit after the stamp: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'a code commit after the stamp: the walk names the break' log_has 'not code the driver accepted'
+chk 'a code commit after the stamp: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# A transplanted stamp proves nothing: the trailer must name its own parent.
+scrub_env; make_flight s9forge
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit \
+  && git commit -q --allow-empty -m 'chore: autopilot — phase 8 accepted (demo) (TEST-1)' \
+       -m 'Autopilot-Green: demo 0123456789abcdef0123456789abcdef01234567')
+run_driver -s 9
+chk 'stamp naming a foreign sha: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'stamp naming a foreign sha: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# The key line in prose is not a trailer: the porcelain parser reads only the
+# trailer block, so a lookalike sentence in a commit body proves nothing.
+scrub_env; make_flight s9prose
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit \
+  && git commit -q --allow-empty -m 'docs: demo notes (TEST-1)' \
+       -m "Autopilot-Green: demo $(git rev-parse HEAD)" \
+       -m 'a later paragraph keeps the line above out of the trailer block')
+run_driver -s 9
+chk 'the key line in prose, not in the trailer block: -s 9 refused' log_has 'phase 9 entry precondition failed'
+
+# A merge between HEAD and the stamp is not linear flight history — even one
+# whose content is artifact-only, so linearity is the check doing the refusing.
+scrub_env; make_flight s9merge
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp \
+  && git branch -q side \
+  && git checkout -q side \
+  && printf -- '- a side note on the testplan\n' >> .ai/plans/demo.testplan.md \
+  && git add -A && git commit -qm 'docs: demo side note (TEST-1)' \
+  && git checkout -q feature/demo \
+  && git merge -q --no-ff -m 'chore: merge side notes (TEST-1)' side)
+run_driver -s 9
+chk 'a merge after the stamp: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'a merge after the stamp: linearity is named' log_has 'linear flight history'
+
+# The walk is bounded: a stamp beyond AP_MAX_PROOF_WALK commits is not verified.
+scrub_env; make_flight s9walkcap
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit && seed_green_stamp \
+  && i=0 && while [ $i -lt 4 ]; do
+       printf -- '- repair note %s\n' $i >> .ai/plans/demo.testplan.md
+       git add -A && git commit -qm 'docs: demo log note (TEST-1)'
+       i=$((i+1))
+     done)
+AP_MAX_PROOF_WALK=3; export AP_MAX_PROOF_WALK
+run_driver -s 9
+chk 'stamp beyond the walk bound: -s 9 refused' log_has 'phase 9 entry precondition failed'
+chk 'stamp beyond the walk bound: the bound is named' log_has 'no acceptance stamp within 3 commits'
 
 # ------------------------------------------------------------------- result --
 scrub_env

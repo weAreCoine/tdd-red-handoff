@@ -58,7 +58,7 @@ feature = one PR. No continuous loop: the process terminates at phase 9.
 | 5 | Test Reviewer | Anthropic review tier | `claude -p` | routed verdict → `APPROVED`/`REJECTED(n)` | minor → 4 · structural → 2 |
 | 6 | Handoff Planner | OpenAI flagship tier | `codex exec`, agentic | `{feature}.md` (implementation plan), commit | — (receives bounces from 7, 8, 9) |
 | 7 | Plan Reviewer | Anthropic review tier | `claude -p` | `Gate: APPROVED` on the plan | reject → 6 |
-| 8 | Implementer | OpenAI mid tier | `codex exec`, agentic | minimum code until GREEN + the `Implementation: GREEN` row on the testplan Log, commit | plan unworkable → 6 |
+| 8 | Implementer | OpenAI mid tier | `codex exec`, agentic | minimum code until GREEN + narrative Log entry, commit; the driver stamps the acceptance | plan unworkable → 6 |
 | 9 | Final Reviewer | Anthropic review tier | `claude -p` | judges against **plan + design record**; `DONE`, last commit, push, draft PR, issue → in review when the reviewer has tracker tools (else proposed in its notes), report | minor → 8 · structural → 6 |
 
 Topology invariant: one family designs and judges (1, 3, 5, 7, 9), the other produces
@@ -121,7 +121,7 @@ When the previous-generation model is retired, update the ladder via `/update-mo
 | Gate 5 outcome | `APPROVED`/`REJECTED(n)` | Exactly pipeline's gate. |
 | Gate 7 outcome | `Gate: APPROVED` on the plan | Uniform reading across profiles: "the approval that authorizes implementation". Who stamped it is in the Log. |
 | Gate 9 outcome | `DONE` on the plan | The plan's own two-value status, already stamped by the review phase in both existing chapters. |
-| Phase-8 completion (entry to 9) | `Implementation: GREEN` row on the testplan Log, as the file's last non-blank line — **new** | Appended by the Implementer when green, committed with the code; the driver requires it to enter phase 9 (ADR-0008 § Amendments, third review). Two conditions: position (last non-blank line — a row nothing follows cannot be inert) and shape (one Log heading, no section after it, no container left open). The reader models fences and HTML comments as opaque and refuses what it does not model — raw HTML, unclosed containers — instead of guessing (seventh review). |
+| Phase-8 completion (entry to 9) | The driver's **acceptance stamp**: an empty commit with the reserved `Autopilot-Green: {feature} <sha>` trailer — **new** | Written by the driver itself, only after every check on the phase-8 attempt passed; the trailer names the accepted commit, which is the stamp's own parent (ADR-0008 § Amendments, eighth review / R8-M1 — it replaced the positional Log row of the third-through-seventh rounds, whose medium the append-only Log contradicted). Phase 9's entry requires the stamp reachable from `HEAD` through artifact-only commits; a phase commit carrying the key fails the attempt. The Log keeps a narrative GREEN row, and its shape guard (one heading, no section after it, no container left open, refuse-not-guess) still gates every phase that reads or appends it. |
 | Flight state | `.ai/autopilot/{feature}/`, gitignored | Verdict JSONs, counters, preflight nonces, event logs, `report.md`. Operational, not an interface between roles: the durable record is in the artifacts. |
 
 **Backward compatibility** is by addition: a plan without a `Gate` row comes from a profile
@@ -179,10 +179,7 @@ body, never created.
   installs; ADR-0008 § Amendments).
 - The driver's event-stream scan, dropped in text mode: revisit with `--json` /
   `--output-schema` when it pays.
-- **False refusals from the positional proof** (seventh review): a real Implementer that appends
-  the GREEN row and then a trailing note fails its attempt, burns its tries and its ladder, and
-  stops the flight — as does a testplan committed without a trailing newline, where `>>` splices
-  the row onto the previous line and the canonical regex misses it. Both fail closed, and the
-  stubs cannot show either: watch the first real flights, and if it bites, the answer is a
-  friendlier phase-8 prompt, not a looser predicate.
+- ~~False refusals from the positional proof~~ (seventh review): resolved by R8-M1 — the proof
+  left the Markdown for the driver's acceptance stamp, so a trailing note after the narrative
+  row, or a spliced last line, no longer refuses anything.
 - ~~Name of the phase-1 launch command~~: resolved — `/fly`.

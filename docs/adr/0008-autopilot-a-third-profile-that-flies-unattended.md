@@ -413,12 +413,59 @@ the quote-refusal disabled, the config made optional — and, on the harness sid
 own one-line actor mutant (the default final review appends a line to `src.txt`), which
 previously survived the whole suite and now fails it wholesale.
 
+## Amendments (2026-08-21 — R8-M1: the completion proof leaves the Markdown)
+
+The eighth review's last open finding (R8-M1) was a contradiction, not a bypass: phase 8's
+proof had to be the testplan's **last non-blank line**, yet the same contract makes the Log
+append-only and instructs phase 9 — like every gate — to append its notes there. The design
+held together only because the entry check runs before phase 9's own writes: any stop between
+phase 9's Log commit and the end of the flight left an artifact that refused re-entry
+(`-s 9`: "the GREEN row is not the last non-blank line") and that the repair section's own
+rules — never delete an entry, never write past the last line — could not repair; the only
+exit was rerunning a whole implementation phase for nothing. The symmetric defect was the
+fourth round's residual: the row is forever, so a cold `-s 9` after manual code commits could
+ride a proof whose code had changed underneath it. Both defects share one root: an
+append-only text file cannot host a positional proof.
+
+The fork was decided with the operator (2026-08-21): the proof moves to a **commit** — the
+one construct nothing can be written after — and the **driver writes it**, not the
+Implementer. When the driver accepts phase 8 (verdict, backstops, wall, per-commit audit all
+passed) it commits an **empty acceptance stamp** whose trailer block carries
+`Autopilot-Green: <feature> <sha>`, with `<sha>` the accepted phase-8 tip — the stamp's own
+parent, so a stamp transplanted elsewhere in history proves nothing. Phase 9's entry walks
+first-parent history from `HEAD` toward a stamp (bounded: `AP_MAX_PROOF_WALK`, default 64):
+every commit before the stamp must have touched **nothing but the two flight artifacts**; a
+merge, a quoted path, any other path, or an exhausted bound refuses with the commit named.
+Trailers are read back with `git interpret-trailers --parse` — the porcelain parser — so a
+lookalike line in prose or in the Log proves nothing; and the key is **reserved**: any commit
+a phase produces whose trailer block carries it fails the attempt. An Implementer-written
+trailer was rejected at the fork: a driver crash between the model's commit and the driver's
+checks would leave a trailer in history that no wall ever measured — the stamp must attest
+the **driver's acceptance**, not the model's claim, and it exists only if every check passed
+(a crash before it leaves no proof: fail-closed, rerun `-s 8`). A gitignored state file was
+rejected too: it would reopen R3-B3 — the proof must travel with the branch.
+
+What this dissolves: phase 9's notes no longer consume the proof (artifact-only commits walk
+through — the false refusal above is gone), one manual code commit past the stamp now refuses
+a cold `-s 9` (the round-4 residual, closed), and the Implementer's GREEN row in the Log
+becomes what it always looked like — the narrative record, every positional instruction
+deleted from the chapter, the template, and the phase-8 prompt. The Log's **shape guard**
+stays in full (one canonical heading, last section, no open containers, refuse-not-guess): it
+now guards the append interface every phase relies on, and entries 8 and 9 still refuse a
+malformed Log. The GREEN scanning in the reader — the canonical-row regex, the row count, the
+last-line bit — is deleted outright, along with the battery of row-hiding scenarios it
+required; their successors pin the stamp instead (no text authorizes phase 9; the walk
+survives artifact appends and refuses code commits, transplants, prose lookalikes, merges,
+and the bound; the reserved key is refused on producer and reviewer commits alike).
+
 ### What the behavior suite is a safety case for
 
 Mutation testing over a 780-line script does not converge: a survivor exists for every line no
 assertion pins, so each round can produce a fresh table indefinitely. The suite is therefore
 declared complete against **eight safety properties**, each of which must carry at least one
-mutation-killing assertion: publication integrity, entry preconditions, caps and routing,
+mutation-killing assertion: publication integrity (which since R8-M1 includes the completion
+proof — the acceptance stamp, its walk, and the reserved trailer key), entry preconditions,
+caps and routing,
 terminal state and lock, configuration fail-fast, report honesty, audit grammar and workspace
 hygiene (added in the seventh round: every commit of a phase carries the semantic prefix and
 the tracker reference; a failed attempt leaves nothing behind for the retry), and — added in
@@ -433,29 +480,32 @@ inertness across `/switch-profile`. It is a kit-level rule carried by the chapte
 reads a foreign-profile artifact, because a flight requires a fresh feature name. `verify-kit`
 does not check it either, and no mutant here can. It belongs to the kit's own review surface.
 
-Mutation evidence, all against the current suite — **331 assertions**, 0 failures unmutated
+Mutation evidence, all against the current suite — **333 assertions**, 0 failures unmutated
 — produced by `tests/driver/mutants.sh` (one exact sed program per row; the two `actor-…`
 rows mutate the test actor instead of the driver):
 
 | Mutant (`tests/driver/mutants.sh` id) | Property | Failures |
 |---|---|---:|
-| `harness-one-family` | entry/dispatch | 90 |
-| `actor-final-review-writes-code` | hard wall | 41 |
-| `log-tail-ignored` | publication | 20 |
+| `harness-one-family` | entry/dispatch | 95 |
+| `stamp-not-written` | publication | 47 |
+| `actor-final-review-writes-code` | hard wall | 46 |
+| `entry9-log-shape` | entry | 34 |
+| `log-tail-ignored` | publication | 22 |
 | `wall-check-off` | hard wall | 19 |
-| `log-tail-setext` | publication | 13 |
+| `proof-vacuous` | publication | 16 |
+| `log-tail-setext` | publication | 15 |
 | `wall-reviewer-edge` | hard wall | 8 |
 | `log-tail-atx` | publication | 7 |
-| `log-last-line` | publication | 7 |
 | `nonce-check` | entry | 7 |
-| `artifact8-no-new-row` | publication | 6 |
-| `flightenv-unvalidated` | config fail-fast | 6 |
 | `wall-implementer-edge` | hard wall | 6 |
+| `flightenv-unvalidated` | config fail-fast | 6 |
+| `log-fence-transparent` | publication | 5 |
+| `reserved-key-off` | publication | 5 |
 | `nul-rejection` | entry | 5 |
 | `route-plan-to-2` | routing | 5 |
 | `lock-release` | terminal state/lock | 5 |
 | `report-journey` | report honesty | 5 |
-| `log-fence-transparent` | publication | 4 |
+| `log-fence-infostring` | publication | 4 |
 | `log-html-allowed` | publication | 4 |
 | `phase2-log-shape` | publication | 4 |
 | `publication-clean-tree` | publication | 4 |
@@ -463,13 +513,16 @@ rows mutate the test actor instead of the driver):
 | `lock-acquire` | terminal state/lock | 4 |
 | `commit-prefix-grammar` | audit/hygiene | 4 |
 | `log-fence-length` | publication | 3 |
-| `log-fence-infostring` | publication | 3 |
 | `log-atx-max-six` | publication | 3 |
-| `green-whole-file` | publication | 3 |
+| `log-comment-not-opaque` | publication | 3 |
+| `proof-walk-any-path` | publication | 3 |
 | `ladder-before-primary` | entry | 3 |
 | `wall-test-writer-edge` | hard wall | 3 |
 | `log-indented-atx` | publication | 2 |
-| `log-comment-not-opaque` | publication | 2 |
+| `artifact8-proceed` | publication | 2 |
+| `proof-any-parent` | publication | 2 |
+| `proof-merge-allowed` | publication | 2 |
+| `proof-unbounded` | publication | 2 |
 | `entry3-adr` | entry | 2 |
 | `entry7-adr` | entry | 2 |
 | `entry8-log-shape` | entry | 2 |
@@ -479,9 +532,9 @@ rows mutate the test actor instead of the driver):
 | `wall-suffix-entry` | hard wall | 2 |
 | `wall-quote-guard` | hard wall | 2 |
 | `report-counters` | report honesty | 2 |
-| `artifact4-prefix` | publication | 1 |
-| `artifact8-prefix` | publication | 1 |
-| `artifact8-position` | publication | 1 |
+| `artifact4-shape` | publication | 1 |
+| `artifact8-shape` | publication | 1 |
+| `proof-body-grep` | publication | 1 |
 | `push-by-name` | publication | 1 |
 | `wall-env-optional` | hard wall | 1 |
 | `report-verdict` | report honesty | 1 |
@@ -500,25 +553,24 @@ Two mutants survive, and each is a statement, not an omission:
   rank decrease (a false failure), not to catch a driver defect — and no current scenario
   distinguishes it. Recorded here rather than renumbered silently.
 
-`green-whole-file` — dropping `head > 0 &&` from the row count — was declared an equivalent
-survivor through two rounds, with an argument that it was strictly *more* refusing. The eighth
-review disproved that argument (see the 2026-08-20 amendments): on a re-entry whose stale
-in-Log row is still last, the mutant counts a row inserted *above* the Log heading as the new
-row phase 8 must add, and publishes on the stale proof. That exact fixture is now a behavior
-scenario, and the mutant fails it — the guard is defended by a test again, not by an
-explanation. One more mutant earned its row the honest way this round: `wall-suffix-entry`
-initially survived because `wall_is_test` expanded the entry list unquoted, handing `*suffix`
-entries to the shell's globber — matching whatever files happened to exist instead of the
-entry itself. The matcher now walks the list as a string, and the scenario plants a root file
-the glob would have eaten, so the survivor was a live defect found by its own mutant.
+`green-whole-file` — the eighth round's re-litigated row-count mutant — no longer exists: the
+ninth round (R8-M1) deleted the row count itself along with the positional proof it guarded,
+so the mutant, its fixture, and the two rounds of argument about its equivalence retired with
+the code they measured. One mutant earned its row the honest way in the eighth round and
+keeps it: `wall-suffix-entry` initially survived because `wall_is_test` expanded the entry
+list unquoted, handing `*suffix` entries to the shell's globber — matching whatever files
+happened to exist instead of the entry itself. The matcher now walks the list as a string,
+and the scenario plants a root file the glob would have eaten, so the survivor was a live
+defect found by its own mutant.
 
 Known residuals and declared gaps:
 
-- A *direct* `-s 9` can still ride an earlier attempt's in-Log row (see the fourth round).
+- ~~A *direct* `-s 9` can still ride an earlier attempt's in-Log row~~ — closed by R8-M1: the
+  proof walk refuses any code commit between `HEAD` and the acceptance stamp.
 - The window between the driver's last pre-push check and git's own refspec resolution.
 - The Log reader is bounded by enumeration (above): a Markdown construct it does not model is
   refused, not read — the failure mode is a stopped flight the operator can fix, never a
-  counted row. The positional condition is what stands behind that boundary.
+  misread Log.
 - `cleanup`'s `RUNNING` → `STOPPED` arm has no faithful injection: an untrapped fatal signal
   terminates the shell **without** running the EXIT trap, and every in-driver exit path after
   `RUNNING` is written goes through `stop_flight`, which writes its own terminal status. So the

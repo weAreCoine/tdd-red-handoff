@@ -36,7 +36,7 @@ cannot approve their own output.
 | 5 | Test gate | **Test Reviewer** | strong review tier | headless | routed verdict → `APPROVED` / `REJECTED(n)` |
 | 6 | Implementation plan | **Handoff Planner** | flagship production tier | headless, agentic | `{feature}.md`, commit |
 | 7 | Plan gate | **Plan Reviewer** | strong review tier | headless | `Gate: APPROVED` on the plan |
-| 8 | Implementation | **Implementer** | mid production tier | headless, agentic | minimum code until GREEN + GREEN row on the testplan Log, commit |
+| 8 | Implementation | **Implementer** | mid production tier | headless, agentic | minimum code until GREEN + Log entry, commit; the driver stamps the acceptance |
 | 9 | Final review | **Final Reviewer** | strong review tier | headless | `DONE` on the plan, push, draft PR, report |
 
 Backward edges: 3 rejects → 2 · 4 blocked → 2 · 5 minor → 4, structural → 2 · 7 rejects → 6 ·
@@ -139,7 +139,7 @@ and refuses the attempt on three edges:
 - **The Test Writer (phase 4) writes only test paths and the testplan.** Anything else — a
   helper in application code, a dependency manifest — is a refusal, not a convenience.
 - **The Implementer (phase 8) never writes a test path.** Its only testplan write is the Log
-  (the GREEN row and its phase entry).
+  (its phase entry — the narrative GREEN row).
 
 What counts as a test path is a **project fact**, so it is not stated here: it is recorded in
 the versioned **`.ai/wall.env`** — one `AP_WALL_TESTS='…'` line, space-separated entries, each
@@ -176,6 +176,17 @@ Implementer's GREEN row. Verdict JSONs, counters, nonces and logs live in
 `.ai/autopilot/{feature}/`, which is **gitignored**:
 operational state, not an interface between roles — the durable record is in the artifacts.
 
+**The completion proof lives in git, not in the Log.** When the driver accepts phase 8 it
+commits an **empty acceptance stamp** whose trailer block carries
+`Autopilot-Green: {feature} <sha>` — the sha of the accepted implementation commit, the
+stamp's own parent, read back with `git interpret-trailers` (a lookalike line in prose proves
+nothing). Phase 9's entry requires that stamp, reachable from `HEAD` through commits that
+touched **nothing but the two flight artifacts**: later Log entries never invalidate it, one
+code commit past it does (the code phase 9 would judge must be code the driver accepted —
+rerun `-s 8`). The trailer key is **reserved to the driver**: a phase commit carrying it
+fails the attempt. The Implementer's GREEN row in the Log remains the human-readable record —
+the artifact narrates, the driver attests.
+
 **Design record content** (phase 1, from the interview): the decisions that bind the flight —
 goal, scope and non-goals, affected layers and signatures policy, edge-case map, the tracker
 reference, the model bindings (including any substitution or ladder active at launch). The
@@ -191,15 +202,14 @@ name — the flight never adopts or overwrites them.
 ### What the Log may contain
 
 The flight reads it with a bounded reader, not a Markdown parser. Two constructs are modelled,
-and inside them nothing counts — no heading, no status row, no GREEN row: fenced blocks
+and inside them nothing counts — no heading, no status row: fenced blocks
 (` ``` ` or `~~~`, closed by a fence that repeats the opening characters, at least as many,
 alone on its line) and HTML comments (`<!-- … -->`, closed by the first line carrying `-->`).
 Everything else that could hide text is **refused** rather than interpreted: a line starting
 with `<` (raw HTML), a fence or comment left open at the end of the file, a second Log heading,
 any section after the Log. A refusal stops the flight and names the shape; the reader never
-falls back on a shorter Log or on a guess. Two consequences worth stating plainly: pasted
-command output goes inside a fenced block, and the Implementer's GREEN row is the file's last
-non-blank line (phase 8).
+falls back on a shorter Log or on a guess. One consequence worth stating plainly: pasted
+command output goes inside a fenced block.
 
 ### Repairing a refused Log
 
@@ -208,11 +218,11 @@ the record. Unfenced pasted output: wrap those lines in a fenced block where the
 no byte of them. A container left open: close it at the end of what it was meant to cover. Raw
 HTML: fence it, or reword the line so it does not start with `<`. A second Log heading, or a
 section after the Log: move that content **above** the Log heading. The repair is structural —
-it never rewrites, reorders or deletes an entry, and it never writes past the last line,
-because the GREEN row must stay there. Record the repair in the **commit message** (a new Log
-entry would be written past the proof), commit, then relaunch the driver at the phase the stop
-named (`-s <phase>`): the entry precondition is checked again, so an incomplete repair stops in
-the same place instead of flying on.
+it never rewrites, reorders or deletes an entry. Record the repair as a Log entry or in the
+commit message, commit, then relaunch the driver at the phase the stop named (`-s <phase>`):
+the entry precondition is checked again, so an incomplete repair stops in the same place
+instead of flying on. A repair commit touches only the testplan, so it never breaks the
+acceptance stamp's chain — phase 9's entry walks through artifact-only commits.
 
 ## Git / tracker ribbon
 
@@ -316,25 +326,26 @@ route `plan`.
 ### Phase 8 — Implementation (Implementer)
 
 Governed by `AGENTS.md`: read the plan, write the **minimum** code to turn the gated tests
-green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append the
-canonical row `- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)`
-under the testplan's `## 6. Log (append-only)` heading, its last section — nowhere else in the
-file, never after a heading of its own, and never inside a fenced block or an HTML comment
-(both are opaque to the flight) — and, the condition that makes the row a proof, **as the
-file's last non-blank line**: anything you write for this phase goes *before* it, nothing after
-it. That is not bookkeeping. A row nothing follows cannot be inert text, because every
-construct that could hide it — a comment, a fence — would have to be closed after it. Commit
-it with the code: that row, in that place, is the durable proof of implementation that
-entering phase 9 requires, and a new one is required on every phase-8 run. A plan that cannot
-be implemented as written is a `blocked` verdict (route `plan`) with the reason in the Log —
-never an improvisation, never the GREEN row, and never a change to the plan or the testplan.
+green, run `test` and `typecheck`, commit. Tests are untouchable. When green, append your Log
+entry — the canonical row
+`- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)` — under the
+testplan's `## 6. Log (append-only)` heading, its last section, and commit everything. The row
+is the flight's narrative record, nothing more: the **proof** of implementation is the
+acceptance stamp the driver itself commits after all of the attempt's checks pass (§ Artifacts,
+"the completion proof"), so never write an `Autopilot-Green` trailer in any commit message —
+that key is reserved to the driver, and a phase commit carrying it fails the attempt. A plan
+that cannot be implemented as written is a `blocked` verdict (route `plan`) with the reason in
+the Log — never an improvisation, and never a change to the plan or the testplan.
 
 ### Phase 9 — Final review (Final Reviewer)
 
-Judge against **plan + design record**: full suite green (`test`), `typecheck` clean, `lint` +
-`format:check` clean, the review checklist of the shared sections (YAGNI, layering, patterns,
-boundaries, no hardcoded values). You never edit code: your write-set is the plan and the
-testplan only (§ The wall, measured on the write-set). Approve → set the plan `Status: DONE` with the date, Log,
-commit, `proceed` — the driver then pushes and opens the draft PR. Reject → Log notes, commit;
-route `implementation` for code fixes, `plan` for structural faults. Findings that are new
-scope go in the report as proposed issues, not into this flight.
+Entered only over the driver's phase-8 acceptance stamp, reachable from `HEAD` through
+artifact-only commits (§ Artifacts, "the completion proof") — your own Log entries never
+consume it. Judge against **plan + design record**: full suite green (`test`), `typecheck`
+clean, `lint` + `format:check` clean, the review checklist of the shared sections (YAGNI,
+layering, patterns, boundaries, no hardcoded values). You never edit code: your write-set is
+the plan and the testplan only (§ The wall, measured on the write-set). Approve → set the plan
+`Status: DONE` with the date, Log, commit, `proceed` — the driver then pushes and opens the
+draft PR. Reject → Log notes, commit; route `implementation` for code fixes, `plan` for
+structural faults. Findings that are new scope go in the report as proposed issues, not into
+this flight.
