@@ -45,11 +45,17 @@ plan, the implementer doesn't know it.
 
 One artifact per feature: the implementation plan `.ai/plans/{feature}.md`, written from
 `.ai/templates/plan_template.md` in Phase 3. The `Source testplan` and `Gate` rows of that
-template belong to the pipeline profile — omit them under two-role.
+template belong to the gated profiles (pipeline, autopilot) — omit them under two-role.
 
-Any `{feature}.testplan.md` files in `.ai/plans/` were produced under the pipeline profile and
-are **inert** while two-role is active: never rewrite, move, or delete them — they become live
-again if the project switches back.
+Artifacts produced under another profile are **inert** while two-role is active — read, never
+rewritten, moved, deleted, or retrofitted. Two cases:
+
+- A `{feature}.testplan.md` with **no** sibling `{feature}.adr.md` is pipeline work: it becomes
+  live again if the project switches back to pipeline.
+- A feature with a sibling `{feature}.adr.md` (the design record) is an **autopilot flight** —
+  its whole artifact set (design record, testplan, plan) is a historical record here. In
+  particular, an autopilot plan that never received its `Gate: APPROVED` row was **never
+  authorized for implementation**: do not hand it to the implementer, and do not stamp it.
 
 ## TDD Workflow (MANDATORY)
 

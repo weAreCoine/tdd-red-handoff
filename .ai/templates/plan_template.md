@@ -4,13 +4,15 @@
      HANDOFF PLAN — the SOLE interface between the design side
      (CLAUDE.md) and the implementer (AGENTS.md). Written by whoever
      the active profile's chapter assigns (the Verifier at the gate
-     under pipeline; the Architect under two-role). The implementer
+     under pipeline; the Handoff Planner under autopilot; the
+     Architect under two-role). The implementer
      does ONLY what this file says. Ambiguity here becomes a guess
      there, so be surgical.
 
-     Under the pipeline profile, signatures and intent come from the
-     feature's testplan (.ai/plans/{feature-name}.testplan.md) — copy
-     them verbatim, don't re-derive them.
+     Under the gated profiles (pipeline, autopilot), signatures and
+     intent come from the feature's testplan
+     (.ai/plans/{feature-name}.testplan.md) — copy them verbatim,
+     don't re-derive them.
 
      CONVENTIONS:
        <!-- FILL: ... -->   instruction to the agent filling this plan.
@@ -24,11 +26,12 @@
 
 > **Status:** {RED | DONE}
 >
-> `RED` tests written and failing — under pipeline, also gate-APPROVED — ready for
+> `RED` tests written and failing — under a gated profile, gated per its chapter — ready for
 > implementation · `DONE` implemented and review-passed (set by the review phase, with its
 > date). Issue the plan as `RED`; only the review phase closes it.
 >
-> **Design side:** tests and this plan are done — under pipeline, from the gated testplan.
+> **Design side:** tests and this plan are done — under the gated profiles, from the gated
+> testplan.
 > **Implementer:** make the listed tests pass, nothing more.
 >
 > **Tier substitution:** {none | {role} ran below its roster tier — see `PROJECT_ARCHITECTURE.md § Model Roster`}
@@ -64,16 +67,19 @@
      green. State the focused-test command (from PROJECT_ARCHITECTURE § Toolchain) so they can run
      exactly this slice. Confirm RED was verified — if any test passed before implementation, it's
      wrong and must not ship in this plan.
-     The "Source testplan" and "Gate" rows are pipeline-profile rows: the Gate line certifies the
-     gate verdict, and a pipeline plan without an APPROVED gate must not exist. Under two-role,
-     OMIT both rows — there is no testplan and no gate. -->
+     The "Source testplan" and "Gate" rows belong to the gated profiles (pipeline, autopilot).
+     The Gate line certifies the approval that authorizes implementation: under pipeline the
+     Verifier writes it at issue time (a pipeline plan without an APPROVED gate must not exist);
+     under autopilot the Handoff Planner issues the plan WITHOUT the Gate line and only the
+     Plan Reviewer stamps it. Under two-role, OMIT both rows — there is no testplan and no
+     gate. -->
 
 - **Source testplan:** `.ai/plans/{feature-name}.testplan.md`
 - **Test files:**
   - `{path}.test.{ext}` — covers: {happy path, failure paths, boundaries, async/abort states it pins}
 - **Run this slice:** `{focused test command with pattern}`
 - **RED verified:** {yes — all listed tests fail as written}
-- **Gate:** APPROVED — {date}, all six gate checks passed (CLAUDE.md, gate phase)
+- **Gate:** APPROVED — {date}, all gate checks passed (CLAUDE.md, gate phase)
 
 ## 4. Implementation Spec
 

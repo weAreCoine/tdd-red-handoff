@@ -1,0 +1,12 @@
+#!/bin/sh
+# claude stub — validates the driver's exact argv contract before acting:
+#   claude -p --permission-mode acceptEdits --model <id> <prompt>
+# A driver regression in how it invokes the harness must fail loudly here,
+# not vanish into a stub that ignores everything but the prompt. The harness
+# IDENTITY is passed on to the actor, which refuses phases that do not belong
+# to this family — a stub that runs any phase for any harness would let the
+# whole phase/harness matrix regress silently.
+[ "$#" -eq 6 ] && [ "$1" = -p ] && [ "$2" = --permission-mode ] && [ "$3" = acceptEdits ] \
+  && [ "$4" = --model ] && [ -n "$5" ] \
+  || { echo "claude stub: unexpected argv: $*" >&2; exit 97; }
+exec sh "$(dirname "$0")/phase-actor.sh" claude "$5" "$6"

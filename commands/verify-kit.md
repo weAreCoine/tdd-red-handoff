@@ -22,8 +22,8 @@ bin/verify-kit.sh                             # kit repo checkout: prefer the tr
   gone, contract names verbatim in the live Toolchain, one floor in two files, no model-name
   leaks); otherwise the templates → **kit** mode (markers must *survive*, detection strings
   intact, contract names pinned, model names confined to README + template roster).
-- `-p <plugin-root>` (target mode) enables the **install-integrity** checks: the four installed
-  kit files (`.ai/process/two-role.md`, `.ai/process/pipeline.md`,
+- `-p <plugin-root>` (target mode) enables the **install-integrity** checks: the five installed
+  kit files (`.ai/process/two-role.md`, `.ai/process/pipeline.md`, `.ai/process/autopilot.md`,
   `.ai/templates/plan_template.md`, `.ai/templates/test_plan_template.md`) byte-identical to the
   plugin's copies (`install-files`), and `.ai/kit.json` `kitVersion` equal to the plugin's
   `version` (`kit-version`, ADR-0005). Without `-p` — the script run by hand or in CI, where
@@ -54,7 +54,7 @@ The install-integrity FAILs come in two kinds, told apart by the version stamp �
 check's own message before proposing a fix:
 
 - **Versions differ** (`kit-version` FAIL, possibly `install-files` too): the plugin moved on
-  since the install. Benign drift; the fix is `/update-kit`, which realigns the four files and
+  since the install. Benign drift; the fix is `/update-kit`, which realigns the five files and
   restamps `kitVersion`.
 - **Same version, bytes differ** (`install-files` FAIL alone): a shipped file was edited in the
   target. This is the serious case — chapters and per-feature templates ship verbatim.

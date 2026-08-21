@@ -33,8 +33,11 @@ Use exactly those. If a command the workflow needs is missing there, STOP and re
 
 Before writing ANY code, read the handoff plan specified by the user in `.ai/plans/`
 (`{feature}.md` — issued by the design side when the feature is ready for you. If the plan
-carries a `Gate:` row in §3, a plan without `Gate: APPROVED` is not ready; a plan without that
-row comes from a profile with no gate and stands on its own).
+carries a `Gate:` row in §3, a plan without `Gate: APPROVED` is not ready. A plan without that
+row stands on its own **only if** the feature has no sibling `{feature}.adr.md` design record —
+that combination means a profile with no gate. With a design record beside it, the plan belongs
+to an autopilot flight and its gate is the `Gate:` row itself: missing row = never authorized —
+STOP and report instead of implementing).
 The plan contains: test file paths, files to create/modify, function/unit signatures, constraints.
 A `Tier substitution` row other than `none` records which design-side role produced the plan below
 its roster tier; it is a record for later review and changes nothing for you — implement exactly

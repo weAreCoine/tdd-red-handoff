@@ -1,10 +1,10 @@
 ---
-description: Switch the active kit profile (two-role | pipeline) — rewrite the CLAUDE.md import line and .ai/kit.json, nothing else; refuse if a testplan is in flight.
+description: Switch the active kit profile (two-role | pipeline | autopilot) — rewrite the CLAUDE.md import line and .ai/kit.json, nothing else; refuse if a testplan or a flight is in flight.
 ---
 
-# /switch-profile `<two-role|pipeline>`
+# /switch-profile `<two-role|pipeline|autopilot>`
 
-Switch **this** project's active profile. The switch is mechanical, offline, and lossless: both
+Switch **this** project's active profile. The switch is mechanical, offline, and lossless: all
 process chapters are installed, so changing profile rewrites exactly **two things** — line 1 of
 `CLAUDE.md` and the `profile` field of `.ai/kit.json`. Nothing else may restate the active
 profile, so nothing else is touched.
@@ -14,29 +14,43 @@ profile, so nothing else is touched.
 
 ## Phase 0 — Preconditions
 
-1. **Argument.** One of `two-role` | `pipeline`. Missing or anything else → STOP and ask.
+1. **Argument.** One of `two-role` | `pipeline` | `autopilot`. Missing or anything else → STOP and ask.
 2. **Profile-aware installation.** `.ai/kit.json` exists, `CLAUDE.md` line 1 is an
-   `@.ai/process/….md` import, and **both** chapter files exist in `.ai/process/`. If `kit.json`
+   `@.ai/process/….md` import, and the **destination's** chapter file exists in `.ai/process/`
+   (an install predating that chapter → point to `/update-kit` first). If `kit.json`
    is missing, this is a pre-profile installation → STOP and point the user to
    `/init-architecture` (its re-init path upgrades in place).
 3. **Same profile?** If `kit.json` already names the requested profile, report "already active"
    and STOP — do not rewrite files to their own content.
 
-## Phase 1 — Refusal rule (protects in-flight specification work)
+## Phase 1 — Refusal rules (protect in-flight work)
 
-This rule fires only when the **destination** profile has no role that reads a testplan
-(today: `two-role`). Switching **to** `pipeline` never blocks — it *revives* inert testplans
-rather than orphaning them — so in that direction skip straight to Phase 2.
+**Testplans.** This rule fires only when the **destination** profile has no role that continues
+an in-flight testplan (today: `two-role`, and `autopilot` — a flight produces its own artifacts
+from a fresh interview and never adopts a half-done testplan). Switching **to** `pipeline`
+never blocks — it *revives* inert **pipeline** testplans rather than orphaning them (a feature
+with a sibling `{feature}.adr.md` design record is an autopilot flight and stays inert under
+every profile — extended inertness).
 
 Read every `.ai/plans/*.testplan.md`. If **any** has `Status` of `DRAFT`, `READY`, `RED` or
 `REJECTED(n)` — i.e. no implementation plan was issued yet — **STOP**: name the feature and its
-status, explain that the destination profile has no role that reads it, and ask for
+status, explain that the destination profile has no role that continues it, and ask for
 explicit confirmation before proceeding. Switching happens **between tasks**; this refusal
 should be rare, and overriding it is the user's call, never yours.
 
+**Flights.** When leaving `autopilot`, read every `.ai/autopilot/*/status` file:
+
+- Any `RUNNING` → **STOP** — a driver is (or believes it is) mid-flight; stop or finish the
+  flight first. Not overridable by confirmation: two contracts steering one repo is never sane.
+- Any `STOPPED` or `PUSHED` → an interrupted flight whose artifacts are mid-lifecycle. STOP,
+  name the feature and its last state, and ask for explicit confirmation: switching abandons
+  the flight (its artifacts go inert — the other chapters refuse to adopt them), and the way
+  back is relaunching the driver under autopilot, not continuing under another profile.
+
 `APPROVED` testplans (plan already issued) and plain `{feature}.md` plans don't block: plans are
-readable under both profiles, and testplans simply go **inert** — never rewritten, moved, or
-deleted; they come back to life on the way back to pipeline.
+readable under every profile, and testplans simply go **inert** — never rewritten, moved, or
+deleted; those without a sibling design record come back to life on the way back to pipeline,
+while ADR-signed sets stay autopilot's.
 
 ## Phase 2 — Apply
 

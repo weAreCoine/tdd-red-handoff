@@ -1,5 +1,5 @@
 ---
-description: Print the active kit profile (two-role | pipeline) — read-only; reads the profile triad and reports drift instead of guessing.
+description: Print the active kit profile (two-role | pipeline | autopilot) — read-only; reads the profile triad and reports drift instead of guessing.
 ---
 
 # /show-profile
@@ -35,8 +35,9 @@ While in `kit.json`, also read `kitVersion` — the install stamp, reported alon
 
 **Triad agrees** (the normal case):
 
-- **Active profile** — `two-role` (Architect + Implementer) or `pipeline` (Designer /
-  Test-Writer / Verifier + Implementer). Models resolve per role in
+- **Active profile** — `two-role` (Architect + Implementer), `pipeline` (Designer /
+  Test-Writer / Verifier + Implementer) or `autopilot` (nine phases flown unattended by the
+  driver, `/fly` opens a flight). Models resolve per role in
   `.ai/PROJECT_ARCHITECTURE.md § Model Roster`.
 - **Kit version** — the `kitVersion` stamp from `.ai/kit.json`.
 - Pointers: `/switch-profile` changes the profile; `/verify-kit` runs the full mechanical pass

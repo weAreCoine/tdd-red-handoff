@@ -1,0 +1,19 @@
+#!/bin/sh
+# gh stub — records its argv (the flight-state dir is gitignored, so the
+# recording never dirties the tree) and validates the exact publication
+# contract, values included: a title or body path that drifts must fail here,
+# not be waved through by an "is non-empty" check.
+#   pr create --draft --base develop --head feature/demo
+#             --title 'feat: demo (TEST-1)' --body-file .ai/autopilot/demo/pr-body.md
+printf '%s\n' "$@" > .ai/autopilot/gh-args
+[ "$#" -eq 11 ] && [ "$1" = pr ] && [ "$2" = create ] && [ "$3" = --draft ] \
+  && [ "$4" = --base ] && [ "$5" = develop ] \
+  && [ "$6" = --head ] && [ "$7" = feature/demo ] \
+  && [ "$8" = --title ] && [ "$9" = 'feat: demo (TEST-1)' ] \
+  && [ "${10}" = --body-file ] && [ "${11}" = .ai/autopilot/demo/pr-body.md ] && [ -f "${11}" ] \
+  || { echo "gh stub: unexpected argv: $*" >&2; exit 97; }
+if [ "${STUB_GH_FAIL:-0}" = 1 ]; then
+  echo 'gh stub: refusing to open the PR' >&2
+  exit 1
+fi
+echo 'https://example.invalid/pr/1'
