@@ -567,6 +567,13 @@ Known residuals and declared gaps:
 
 - ~~A *direct* `-s 9` can still ride an earlier attempt's in-Log row~~ — closed by R8-M1: the
   proof walk refuses any code commit between `HEAD` and the acceptance stamp.
+- A direct `-s 2` relaunch aimed at a **historical** feature overwrites its artifacts (R8-M3):
+  the fresh-name check of extended inertness lives in `/fly`, the only entry of a *new*
+  flight, and the driver cannot tell a stopped flight from a closed one — it only sees that
+  the phase's entry precondition holds. Accepted as manual-recovery surface only: `-s` exists
+  for an operator amending a stopped flight, and reaching a historical feature needs that
+  operator to aim it there deliberately (a leftover — or hand-written — gitignored
+  `flight.env`, which `/fly` would never write for a non-fresh name). The driver is unchanged.
 - The window between the driver's last pre-push check and git's own refspec resolution.
 - The Log reader is bounded by enumeration (above): a Markdown construct it does not model is
   refused, not read — the failure mode is a stopped flight the operator can fix, never a
