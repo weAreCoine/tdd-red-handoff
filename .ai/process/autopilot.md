@@ -14,9 +14,11 @@ between, phases 2–9 run as headless sessions chained by the **driver** — a d
 script that dispatches, counts, and stops; it decides nothing. One **flight** = one feature =
 one PR; the process terminates at the final review. There is no continuous loop.
 
-**The hard wall is unchanged:** whoever writes tests never writes application code, and the
-implementer never touches tests. Every phase boundary is an artifact in `.ai/plans/` — if it's
-not in the artifact, the next phase doesn't know it.
+**The hard wall is unchanged** — whoever writes tests never writes application code, and the
+implementer never touches tests — **and under this profile it is measured, not assumed**:
+nobody watches the sessions that could breach it, so the driver checks every phase's
+write-set against it (see § The wall, measured on the write-set). Every phase boundary is an
+artifact in `.ai/plans/` — if it's not in the artifact, the next phase doesn't know it.
 
 **The family invariant:** one model family designs and judges (phases 1, 3, 5, 7, 9); the
 other produces (phases 2, 4, 6, 8). Four produced artifacts, four cross-family gates. No
@@ -121,7 +123,36 @@ harness-agnostic:
    its own preflight), then the flight stops for the operator.
 5. Backstops for mid-session degradation: the end of every phase requires the expected artifact
    on disk (non-trivial, carrying the canonical status/gate row), a commit (HEAD advanced,
-   message carrying the tracker reference when one exists), and a clean tree.
+   message carrying the tracker reference when one exists), a clean tree — and a write-set
+   inside the phase's wall edges (next section).
+
+## The wall, measured on the write-set
+
+The hard wall is not a prompt instruction under this profile. After every attempt the driver
+measures **what the phase actually touched** — the git diff between the phase's entry snapshot
+and its final commit; the clean-tree backstop makes that diff the attempt's whole write-set —
+and refuses the attempt on three edges:
+
+- **Reviewers (phases 3, 5, 7, 9) write only the two flight artifacts** — the testplan and the
+  plan. A final review that also "fixes" the code is not a review: the attempt fails, and the
+  edit never survives into the flight.
+- **The Test Writer (phase 4) writes only test paths and the testplan.** Anything else — a
+  helper in application code, a dependency manifest — is a refusal, not a convenience.
+- **The Implementer (phase 8) never writes a test path.** Its only testplan write is the Log
+  (the GREEN row and its phase entry).
+
+What counts as a test path is a **project fact**, so it is not stated here: it is recorded in
+the versioned **`.ai/wall.env`** — one `AP_WALL_TESTS='…'` line, space-separated entries, each
+a directory prefix (`tests/`), a path suffix (`*_test.go`), or an exact path. The file is data,
+parsed like the machine binding: strict grammar, fail-fast on anything it does not understand.
+It is versioned so every clone enforces the same wall, and **fail-closed**: without it the
+flight does not start, and a path the driver cannot read (git had to quote it) is refused,
+never guessed.
+
+A wall refusal is a **failed attempt, not a stopped flight**: the driver resets to the phase
+snapshot and retries — the same model, then the recorded ladder, then the stop — exactly like
+any other backstop, and the violating commits never survive. The refusal names the role and
+the path, so a stop that does surface is a work order, not a diagnosis.
 
 ## Artifacts & status lifecycle
 
@@ -302,7 +333,8 @@ never an improvisation, never the GREEN row, and never a change to the plan or t
 
 Judge against **plan + design record**: full suite green (`test`), `typecheck` clean, `lint` +
 `format:check` clean, the review checklist of the shared sections (YAGNI, layering, patterns,
-boundaries, no hardcoded values). Approve → set the plan `Status: DONE` with the date, Log,
+boundaries, no hardcoded values). You never edit code: your write-set is the plan and the
+testplan only (§ The wall, measured on the write-set). Approve → set the plan `Status: DONE` with the date, Log,
 commit, `proceed` — the driver then pushes and opens the draft PR. Reject → Log notes, commit;
 route `implementation` for code fixes, `plan` for structural faults. Findings that are new
 scope go in the report as proposed issues, not into this flight.

@@ -51,6 +51,7 @@ make_flight() { # $1 = scenario name -> G (repo), S (flight state dir), ORIGIN
     mkdir -p .ai/plans .ai/autopilot/demo
     printf '{"profile":"autopilot","kitVersion":"0.0.0"}\n' > .ai/kit.json
     printf '.ai/autopilot/\n' > .gitignore
+    printf "AP_WALL_TESTS='tests.txt'\n" > .ai/wall.env   # versioned: the wall the stubs' write-sets honor
     {
       printf '# Design record — demo\n\nGoal, scope and non-goals, signatures, edge-case map.\n\n'
       i=0; while [ $i -lt 12 ]; do echo "- design note $i, pinned during the interview"; i=$((i+1)); done
@@ -1411,6 +1412,183 @@ chk 'retry hygiene: the failed attempt is retried' log_has 'try 2/3'
 chk 'retry hygiene: the retry starts from a clean tree' grep -qx clean "$S/retry-tree"
 chk 'retry hygiene: the leftover never survived into the flight' test ! -e "$G/leftover.txt"
 chk 'retry hygiene: the flight completes' st DONE
+
+echo '# R8-B1: the wall is measured on the write-set, never assumed from the prompts'
+# The published fixture: the Final Reviewer edits application code and
+# self-approves. The wall refuses the attempt on the diff, not on the claim.
+scrub_env; make_flight wall9
+SC=$BASE/sc-wall9; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+echo 'reviewer changed implementation after judging it' >> src.txt
+sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- stub: final review that also fixed the code\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'reviewer wrote code: STOPPED' st STOPPED
+chk 'reviewer wrote code: the wall names role and file' log_has "Final Reviewer touched 'src.txt'"
+chknot 'reviewer wrote code: phase 9 never passed' log_has 'phase 9 ok'
+chk 'reviewer wrote code: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# A wall refusal is a failed attempt, not a poisoned flight: the retry starts
+# from the snapshot, and a clean second attempt still completes.
+scrub_env; make_flight wall9retry
+SC=$BASE/sc-wall9retry; mkdir -p "$SC"
+cat > "$SC/phase9" <<'EOF'
+if [ -f "$FLIGHT_DIR/p9-walled" ]; then
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+  printf -- '- stub: final review, hands off the code this time\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+else
+  touch "$FLIGHT_DIR/p9-walled"
+  echo 'reviewer changed implementation after judging it' >> src.txt
+  sed 's/^> \*\*Status:\*\*.*/> **Status:** DONE — 2026-08-15/' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+  printf -- '- stub: final review that also fixed the code\n' >> "$TESTPLAN"
+  git add -A && git commit -qm 'docs: demo final review (TEST-1)'
+  printf '{"verdict":"approve","route":"proceed","notes":"ship it"}' > "$VERDICT"
+fi
+EOF
+STUB_SCENARIO_DIR=$SC; export STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 9
+chk 'walled attempt retried: DONE on the clean retry' st DONE
+chk 'walled attempt retried: the violation is in the journey' log_has 'wall:'
+chknot 'walled attempt retried: the reviewer-authored file never got published' \
+  git -C "$ORIGIN" cat-file -e "refs/heads/feature/demo:src.txt"
+
+scrub_env; make_flight wall4
+SC=$BASE/sc-wall4; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** RED/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+printf -- '- stub: tests transcribed, and a helper snuck into the app\n' >> "$TESTPLAN"
+echo 'test stub' >> tests.txt
+echo 'helper the wall forbids' >> src.txt
+git add -A && git commit -qm 'test: demo red tests (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan READY && seed_commit)
+run_driver -s 4
+chk 'test writer wrote code: STOPPED' st STOPPED
+chk 'test writer wrote code: the wall names role and file' log_has "Test Writer touched 'src.txt'"
+chknot 'test writer wrote code: phase 4 never passed' log_has 'phase 4 ok'
+
+scrub_env; make_flight wall8
+SC=$BASE/sc-wall8; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+echo 'assert weakened' >> tests.txt
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'implementer touched tests: STOPPED' st STOPPED
+chk 'implementer touched tests: the wall names role and path' log_has "Implementer touched test path 'tests.txt'"
+chknot 'implementer touched tests: phase 9 never launched' log_has 'phase 9 (Final Reviewer)'
+chk 'implementer touched tests: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# The reviewer bound covers every reviewer phase, not just the final review.
+scrub_env; make_flight wall3
+SC=$BASE/sc-wall3; mkdir -p "$SC"
+cat > "$SC/phase3" <<'EOF'
+echo 'reviewer scratchpad' >> notes.txt
+sed 's/^> \*\*Status:\*\*.*/> **Status:** READY/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'docs: demo inventory gate (TEST-1)'
+printf '{"verdict":"approve","route":"proceed","notes":"ok"}' > "$VERDICT"
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'reviewer stray file: STOPPED' st STOPPED
+chk 'reviewer stray file: the wall names the reviewer bound' log_has "TestPlan Reviewer touched 'notes.txt'"
+
+# The three entry forms: 'dir/' prefix honored on the test side, '*suffix'
+# claiming a colocated test file on the implementation side. Phase 4 also
+# leaves a root file the suffix claims, so a matcher that hands '*_spec.txt'
+# to the shell's globber (expanding it to that root file, an exact name)
+# would let the subdirectory violation through — the wall must match the
+# entry itself, whatever files exist.
+scrub_env; make_flight wallforms
+(cd "$G" && printf "AP_WALL_TESTS='tests/ *_spec.txt'\n" > .ai/wall.env \
+   && git add -A && git commit -qm 'chore: demo wall with prefix and suffix entries (TEST-1)')
+SC=$BASE/sc-wallforms; mkdir -p "$SC"
+cat > "$SC/phase4" <<'EOF'
+sed 's/^> \*\*Status:\*\*.*/> **Status:** RED/' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+printf -- '- stub: tests transcribed under the tests/ prefix\n' >> "$TESTPLAN"
+mkdir -p tests && echo 'test stub' >> tests/unit.txt
+echo 'a colocated spec the suffix legitimately claims' >> helper_spec.txt
+git add -A && git commit -qm 'test: demo red tests (TEST-1)'
+EOF
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+mkdir -p sub && echo 'a spec file the suffix entry claims' >> sub/lib_spec.txt
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'prefix + suffix entries: the Test Writer passes the wall' log_has 'phase 4 ok'
+chk 'suffix entry: the Implementer on sub/lib_spec.txt is refused' log_has "Implementer touched test path 'sub/lib_spec.txt'"
+chk 'suffix entry: STOPPED' st STOPPED
+
+# Fail-closed: no wall, no takeoff — and a wall the driver cannot parse is a
+# refused config, exactly like the machine binding.
+scrub_env; make_flight wallmissing
+(cd "$G" && git rm -q .ai/wall.env && git commit -qm 'chore: drop the wall (TEST-1)')
+run_driver
+chk 'missing wall.env: exit 2' test "$RC" -eq 2
+chk 'missing wall.env: named' out_has '.ai/wall.env missing'
+
+scrub_env; make_flight wallempty
+(cd "$G" && printf "AP_WALL_TESTS=''\n" > .ai/wall.env \
+   && git add -A && git commit -qm 'chore: demo empty wall (TEST-1)')
+run_driver
+chk 'empty AP_WALL_TESTS: exit 2' test "$RC" -eq 2
+chk 'empty AP_WALL_TESTS: named' out_has 'not a valid path list'
+
+scrub_env; make_flight walldots
+(cd "$G" && printf "AP_WALL_TESTS='tests/../src/'\n" > .ai/wall.env \
+   && git add -A && git commit -qm 'chore: demo traversal wall (TEST-1)')
+run_driver
+chk 'a .. wall entry: exit 2' test "$RC" -eq 2
+chk 'a .. wall entry: named' out_has 'not a valid path list'
+
+# A path git has to quote is refused, never guessed to be "not a test".
+scrub_env; make_flight wallquote
+SC=$BASE/sc-wallquote; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+echo x > '"tricky.txt'
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'undecidable path: STOPPED' st STOPPED
+chk 'undecidable path: refused as unreadable, not guessed' log_has 'refuses what it cannot read'
+
+echo '# R8-M2: a phase-8 row outside the Log is not the new row phase 8 must add'
+scrub_env; make_flight m2outrow
+SC=$BASE/sc-m2outrow; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+awk '/^## 6\. Log \(append-only\)$/ && !d {
+       print "- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)"
+       print ""; d = 1
+     } { print }' "$TESTPLAN" > "$TESTPLAN.tmp" && mv "$TESTPLAN.tmp" "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_testplan APPROVED && seed_impl_green && seed_plan gated && seed_commit)
+run_driver -s 8
+chk 'new row above the Log, stale row last: the attempt is refused' log_has 'expected artifact/status'
+chk 'new row above the Log, stale row last: STOPPED' st STOPPED
+chk 'new row above the Log, stale row last: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 # ------------------------------------------------------------------- result --
 scrub_env

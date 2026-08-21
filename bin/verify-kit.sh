@@ -403,6 +403,14 @@ else # target
       else
         fail flight-state ".gitignore does not cover .ai/autopilot/ — flight state would be committed (/fly adds the line)"
       fi
+
+      # wall — the write-set wall's versioned half: the driver fail-closes without it,
+      # so its absence is a flight that cannot take off, not a style nit.
+      if [ -f .ai/wall.env ] && grep -Eq "^AP_WALL_TESTS='[^']+'[[:space:]]*$" .ai/wall.env; then
+        pass wall ".ai/wall.env records the test paths the driver enforces the wall against"
+      else
+        fail wall ".ai/wall.env missing or without an AP_WALL_TESTS='…' line — the driver refuses to fly (/fly writes it)"
+      fi
     fi
 
     # install-integrity (with -p only) — the install measured against the plugin payload.

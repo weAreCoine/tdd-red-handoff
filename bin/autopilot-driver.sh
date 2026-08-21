@@ -21,6 +21,9 @@
 # the operator's Claude Code sandbox plus acceptEdits. A bypass is never a
 # silent default and never inherited from the caller's environment — it exists
 # only as an explicit AP_*_ARGS line in models.env, written by the operator.
+# The permission policy is coarse by necessity (every reviewer needs the shell
+# to run suites), so it is not what carries the hard wall: the wall is enforced
+# on the WRITE-SET — see "the wall on the write-set" below and .ai/wall.env.
 #
 # The base branch is `develop`, fixed by ADR-0008 — not configurable.
 #
@@ -91,6 +94,15 @@ is_model_list() { # ids separated by single ASCII spaces — the exact grammar t
 is_args() { # an option string: non-empty, starts with '-', allowed charset only
   printf '%s' "$1" | grep -Eq '^-[A-Za-z0-9 ._=:-]*$'
 }
+# The wall's path-entry grammar (R8-B1): entries separated by single spaces,
+# each 'dir/' (prefix), '*suffix' (path suffix, no slash), or an exact path.
+# ASCII only, never a leading '/' or '-', and never '..' — an entry that can
+# match nothing on git's normalized paths must be refused, not kept.
+WALL_ENTRY='(\*[A-Za-z0-9._-]+|[A-Za-z0-9._-][A-Za-z0-9._/-]*)'
+is_path_list() {
+  printf '%s' "$1" | grep -Eq "^${WALL_ENTRY}( ${WALL_ENTRY})*\$" || return 1
+  case $1 in *..*) return 1 ;; esac
+}
 # Bounded decimal grammar: shell arithmetic has a finite range, and an
 # out-of-range digit string WRAPS instead of failing — "all digits" is not
 # "a safe integer". COUNTER_MAX and the {0,8} bound must move together.
@@ -100,17 +112,20 @@ is_count() { printf '%s' "$1" | grep -Eq '^[1-9][0-9]{0,8}$'; }
 S=.ai/autopilot/$FEATURE
 MODELS_ENV=.ai/autopilot/models.env
 FLIGHT_ENV=$S/flight.env
+WALL_ENV=.ai/wall.env
 
 [ -f .ai/kit.json ] || die "no .ai/kit.json (not a kit install)"
 profile=$(sed -n 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .ai/kit.json | head -n 1)
 [ "$profile" = autopilot ] || die "active profile is '$profile', not autopilot (/switch-profile)"
 [ -f "$MODELS_ENV" ] || die "$MODELS_ENV missing (/fly writes it)"
 [ -f "$FLIGHT_ENV" ] || die "$FLIGHT_ENV missing (/fly writes it)"
+[ -f "$WALL_ENV" ] || die "$WALL_ENV missing — the wall is versioned project config, one AP_WALL_TESTS='…' line naming the test paths; without it phases 4 and 8 cannot be judged (/fly writes it, autopilot.md § The wall)"
 
 cfg_validate "$MODELS_ENV" 'AP_MODEL_REVIEW AP_MODEL_FLAGSHIP AP_MODEL_COSTEFF AP_MODEL_MID
 AP_LADDER_FLAGSHIP AP_LADDER_COSTEFF AP_LADDER_MID AP_LADDER_REVIEW
 AP_CLAUDE_ARGS AP_CODEX_ARGS'
 cfg_validate "$FLIGHT_ENV" 'AP_ISSUE_REF'
+cfg_validate "$WALL_ENV" 'AP_WALL_TESTS'
 
 MODEL_REVIEW=$(cfg_get "$MODELS_ENV" AP_MODEL_REVIEW)
 MODEL_FLAGSHIP=$(cfg_get "$MODELS_ENV" AP_MODEL_FLAGSHIP)
@@ -146,6 +161,12 @@ BASE_BRANCH=develop   # fixed by ADR-0008; not configurable
 ISSUE_REF=$(cfg_get "$FLIGHT_ENV" AP_ISSUE_REF)
 printf '%s' "$ISSUE_REF" | grep -Eq '^[A-Za-z0-9_#-]*$' \
   || die "flight.env: AP_ISSUE_REF has invalid characters ('$ISSUE_REF')"
+
+# The wall's machine-readable half (ADR-0008, R8-B1): which paths hold tests in
+# THIS project. Versioned — the same wall on every clone — and fail-closed:
+# without a parseable value the flight does not start.
+WALL_TESTS=$(cfg_get "$WALL_ENV" AP_WALL_TESTS)
+is_path_list "$WALL_TESTS" || die "wall.env: AP_WALL_TESTS missing or not a valid path list ('$WALL_TESTS')"
 
 # Test seams (binaries and caps only — never the permission policy).
 CLAUDE_BIN=${AP_CLAUDE_BIN:-claude}
@@ -484,6 +505,64 @@ reject_routes() { # backward routes a REVIEWER may take
 producer_route() { case $1 in 4) echo testplan ;; 8) echo plan ;; *) echo '' ;; esac; }
 route_phase() { case $1 in testplan) echo 2 ;; tests) echo 4 ;; plan) echo 6 ;; implementation) echo 8 ;; esac; }
 
+# --- the wall on the write-set (ADR-0008, R8-B1) -----------------------------
+# The hard wall is not a prompt instruction here: after each attempt the driver
+# measures WHAT the phase touched — the diff between the phase snapshot and
+# HEAD; the clean-tree backstop makes that diff the attempt's whole write-set —
+# and refuses the attempt on three edges: reviewers (3/5/7/9) write only the
+# two flight artifacts, the Test Writer (4) writes only test paths and the
+# testplan, the Implementer (8) never writes a test path. What counts as a
+# test path is the project's recorded AP_WALL_TESTS; a path the driver cannot
+# read (git had to quote it) is refused, never guessed. Phases 2 and 6 build
+# single artifacts already pinned by their artifact backstops.
+wall_is_test() { # $1 = path -> 0 when an AP_WALL_TESTS entry claims it. The
+                 # list is walked as a string, never expanded unquoted: the
+                 # shell's globber would turn a '*suffix' entry into whatever
+                 # files happen to sit in the current directory, and the wall
+                 # would silently depend on the repository's contents.
+  wit_rest=$WALL_TESTS
+  while [ -n "$wit_rest" ]; do
+    e=${wit_rest%% *}
+    case $wit_rest in *' '*) wit_rest=${wit_rest#* } ;; *) wit_rest='' ;; esac
+    case $e in
+      \**) case $1 in *"${e#\*}") return 0 ;; esac ;;   # '*suffix' claims by path suffix
+      */)  case $1 in "$e"*)      return 0 ;; esac ;;   # 'dir/' claims by prefix
+      *)   [ "$1" = "$e" ] && return 0 ;;               # exact path
+    esac
+  done
+  return 1
+}
+wall_ok() { # $1 = phase, $2 = snapshot sha; WALL_WHY set on refusal
+  WALL_WHY=''
+  case $1 in 3|4|5|7|8|9) ;; *) return 0 ;; esac
+  while IFS= read -r wp; do
+    [ -n "$wp" ] || continue
+    case $wp in
+      \"*) WALL_WHY="phase $1 touched a path git had to quote ($wp) — the wall refuses what it cannot read"; return 1 ;;
+    esac
+    case $1 in
+      3|5|7|9)
+        if [ "$wp" != "$TESTPLAN" ] && [ "$wp" != "$PLAN" ]; then
+          WALL_WHY="$(phase_role "$1") touched '$wp' — a reviewer writes only $TESTPLAN and $PLAN"
+          return 1
+        fi ;;
+      4)
+        if [ "$wp" != "$TESTPLAN" ] && ! wall_is_test "$wp"; then
+          WALL_WHY="Test Writer touched '$wp' — outside the testplan and the recorded test paths ($WALL_ENV)"
+          return 1
+        fi ;;
+      8)
+        if [ "$wp" != "$TESTPLAN" ] && wall_is_test "$wp"; then
+          WALL_WHY="Implementer touched test path '$wp' — the Implementer never touches tests"
+          return 1
+        fi ;;
+    esac
+  done <<WALL_EOF
+$(git -c core.quotePath=false diff --name-only --no-renames "$2" HEAD)
+WALL_EOF
+  return 0
+}
+
 # Entry precondition: the artifacts on disk must justify launching this phase —
 # EVERY input its contract consumes (existence, non-triviality, canonical
 # lifecycle state), not just one status token. Checked before EVERY launch —
@@ -565,12 +644,12 @@ phase_task() { # $1 = phase, $2 = verdict path, $3 = notes file ('' if none)
   case $1 in
     2) printf '%sInput: the design record %s. Produce %s from .ai/templates/test_plan_template.md per your phase contract: the full test-case inventory, the canonical "> **Status:** DRAFT" line, the template'"'"'s Log heading "## 6. Log (append-only)" kept verbatim, exactly once, and LAST — no section may follow it (every later phase appends under it), your Log entry. Commit when done.' "$notes" "$ADR" "$TESTPLAN" ;;
     3) printf 'Judge %s against %s and the repository, per your phase contract. Approve: set the canonical Status line to READY, append your Log entry, commit. Reject: append point-by-point notes to the Log, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, these three keys, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "testplan".' "$TESTPLAN" "$ADR" "$2" ;;
-    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Run the focused tests, verify RED mechanically, append the RED output to the Log INSIDE a fenced block (```) — unfenced output can carry ruler lines that Markdown reads as a new section, which would malform the testplan — set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
+    4) printf '%sInput: the READY testplan %s. Transcribe the inventory into test code per your phase contract — no spec decisions. Write only test files and the testplan: the driver refuses any other path in your diff. Run the focused tests, verify RED mechanically, append the RED output to the Log INSIDE a fenced block (```) — unfenced output can carry ruler lines that Markdown reads as a new section, which would malform the testplan — set the canonical Status line to RED, commit. If the inventory is unworkable (missing/ambiguous expected value), do NOT guess: log the gap, commit, and write exactly {"verdict":"blocked","route":"testplan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$TESTPLAN" "$2" ;;
     5) printf 'Run the six-point test gate on the RED tests against %s, per your phase contract. Approve: canonical Status line to APPROVED, Log, commit. Reject: set the canonical Status line to REJECTED(%s) — this is rejection number %s on this gate — point-by-point Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "tests" (transcription faults) or "testplan" (inventory faults).' "$TESTPLAN" "$EXPECTED_REJ" "$EXPECTED_REJ" "$2" ;;
     6) printf '%sInput: the APPROVED testplan %s and the design record %s. Produce the implementation plan %s from .ai/templates/plan_template.md per your phase contract: signatures copied verbatim, constraints derived, Source testplan row present, canonical "> **Status:** RED" line, and NO Gate row (the Plan Reviewer stamps it). Append your Log entry to the testplan, commit.' "$notes" "$TESTPLAN" "$ADR" "$PLAN" ;;
     7) printf 'Judge the plan %s against the gated testplan %s and the design record %s, per your phase contract. Approve: add the canonical row "- **Gate:** APPROVED — <YYYY-MM-DD>, all gate checks passed (CLAUDE.md, gate phase)" to the plan §3, Log entry in the testplan, commit. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed", reject only with "plan".' "$PLAN" "$TESTPLAN" "$ADR" "$2" ;;
     8) printf '%sYou are governed by AGENTS.md. Read the gated plan %s and implement the minimum code to turn the listed RED tests green: run the focused tests while iterating, then the full suite and typecheck. Never touch test files. When green: append the canonical row "- **Implementation:** GREEN — <YYYY-MM-DD>, full suite + typecheck (Implementer)" to the testplan Log — the section under the heading "## 6. Log (append-only)", which is the file'"'"'s last section: nowhere else, never under a heading of your own, never inside a fenced block or an HTML comment — and write it as the FILE'"'"'S LAST NON-BLANK LINE: anything else you log for this phase goes before it, nothing at all after it (a row nothing follows cannot be inert text — that is what makes it a proof). Then commit everything. If the plan cannot be implemented as written, do NOT improvise and do NOT write the GREEN row: log the reason in the testplan Log, commit, and write exactly {"verdict":"blocked","route":"plan","notes":"<why>"} to %s — one line, nothing else in the file.' "$notes" "$PLAN" "$2" ;;
-    9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
+    9) printf 'Final review, per your phase contract: judge the implementation against the plan %s AND the design record %s. Full suite, typecheck, lint, format:check, the shared review checklist. You never edit code: your write-set is the plan and the testplan only — the driver refuses any other path in your diff. Approve: set the plan canonical Status line to DONE with the date, Log entry, commit; if tracker tools are available move the issue %s to review, else propose the move in your notes. Reject: Log notes, commit. Then write your routed verdict to %s as compact single-line JSON — exactly {"verdict":"approve|reject","route":"<route>","notes":"<short summary>"}, one line, nothing else in the file; approve pairs only with route "proceed"; reject pairs with "implementation" (code fixes) or "plan" (structural faults). New-scope findings become proposed issues in your notes, never fixes in this flight.' "$PLAN" "$ADR" "${ISSUE_REF:-<none>}" "$2" ;;
   esac
 }
 
@@ -664,6 +743,7 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       [ -z "$fail" ] && { artifact_ok "$p" "$route" || fail='expected artifact/status missing, trivial, or malformed for this route'; }
       [ -z "$fail" ] && [ "$(git rev-parse HEAD)" = "$snap" ] && fail='no commit (HEAD did not advance)'
       [ -z "$fail" ] && [ -n "$(git status --porcelain)" ] && fail='working tree not clean after the phase'
+      [ -z "$fail" ] && { wall_ok "$p" "$snap" || fail="wall: $WALL_WHY"; }
       if [ -z "$fail" ]; then
         # every commit of the phase carries the semantic prefix and the tracker
         # reference — the audit trail holds commit by commit, not in aggregate

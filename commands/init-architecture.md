@@ -129,6 +129,12 @@ Then wire the profile:
 4. Ensure `.gitignore` covers `.ai/autopilot/` — flight state under the autopilot profile is
    operational and never committed; adding the line now keeps a later `/switch-profile
    autopilot` clean.
+5. When the Phase-2 profile is **autopilot**, write the versioned `.ai/wall.env` — the wall's
+   machine-readable test paths, enforced by the driver on every phase's write-set (fail-closed:
+   no wall, no flight). One line, entries from the real test layout you will pin in § Testing:
+   `AP_WALL_TESTS='tests/'` — space-separated `dir/` prefixes, `*suffix` entries, or exact
+   paths. Under the other profiles skip it: a later `/switch-profile autopilot` gets it from
+   `/fly`, which writes it before the first flight.
 
 `plan_template.md` and `test_plan_template.md` are the only templates **installed** into the
 project's `.ai/templates/` — the roles reference them per feature at runtime. The three doc

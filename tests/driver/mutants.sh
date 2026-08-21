@@ -113,10 +113,19 @@ lock-release	bin/autopilot-driver.sh	/^  rm -rf "\$S\/lock"$/s@.*@  :@	terminal 
 cleanup-arm	bin/autopilot-driver.sh	/= RUNNING \]; then$/s@.*@  if false; then@	terminal state/lock
 commit-prefix-grammar	bin/autopilot-driver.sh	/--format=%s "\$c" | grep -qE/s@.*@          git log -1 --format=%s "\$c" | grep -qE '.*' \\@	audit/hygiene
 retry-clean	bin/autopilot-driver.sh	/^      git clean -fd >\/dev\/null 2>&1$/s@.*@      :@	audit/hygiene
+wall-check-off	bin/autopilot-driver.sh	/wall_ok "\$p" "\$snap"/s@wall_ok "\$p" "\$snap"@:@	hard wall
+wall-reviewer-edge	bin/autopilot-driver.sh	/"\$wp" != "\$PLAN" \]; then$/s@; then@ \&\& false; then@	hard wall
+wall-test-writer-edge	bin/autopilot-driver.sh	/! wall_is_test "\$wp"; then$/s@; then@ \&\& false; then@	hard wall
+wall-implementer-edge	bin/autopilot-driver.sh	/\] && wall_is_test "\$wp"; then$/s@; then@ \&\& false; then@	hard wall
+wall-prefix-entry	bin/autopilot-driver.sh	/claims by prefix/s@return 0@:@	hard wall
+wall-suffix-entry	bin/autopilot-driver.sh	/claims by path suffix/s@return 0@:@	hard wall
+wall-quote-guard	bin/autopilot-driver.sh	/refuses what it cannot read/s@; return 1 ;;@ ;;@	hard wall
+wall-env-optional	bin/autopilot-driver.sh	/wall is versioned project config/s@|| die@|| :@	hard wall
 report-counters	bin/autopilot-driver.sh	/^      "\$(show_int edges)" "\$MAX_EDGES"/s@.*@      0 0 0 0 0 0@	report honesty
 report-journey	bin/autopilot-driver.sh	/printf '## Journey/s@.*@    :@	report honesty
 report-verdict	bin/autopilot-driver.sh	/printf 'Last verdict/s@.*@      :@	report honesty
 actor-ladder-scope	tests/driver/stubs/phase-actor.sh	/if (lp == p) print lm/s@if (lp == p) print lm@print lm@	(test harness)
+actor-final-review-writes-code	tests/driver/stubs/phase-actor.sh	/'DONE — 2026-08-15'$/s@.*@    echo reviewer-authored-code >> src.txt; set_status "\$PLAN" 'DONE — 2026-08-15'@	hard wall
 TABLE
 }
 

@@ -239,8 +239,9 @@ case it is being asked to carry.
   therefore not part of any exact count.
 
 Mutation evidence for that round was taken against a 177-assertion suite; the sixth round
-re-measured the whole table on the suite as it stands. Both are superseded by the seventh
-round's table below, which is produced by a harness rather than by hand.
+re-measured the whole table on the suite as it stands. Both are superseded by the
+harness-produced table below — introduced in the seventh round and re-measured whenever the
+suite changes, last in the eighth.
 
 ## Amendments (2026-08-15 — sixth implementation review)
 
@@ -361,17 +362,70 @@ and pushed a branch. Fourth round, same family — the completion proof was reco
   unreproducible count. The table below is one run of that script; reproducing a row is running
   `sh tests/driver/mutants.sh <id>`.
 
+## Amendments (2026-08-20 — eighth implementation review)
+
+The eighth independent review confirmed the seventh round's fixes and closed the
+publication-proof family for good: four consecutive rounds (R4→R7) found no remaining bypass
+of the completion proof in the code as it stands. Its blocker sat somewhere new — on the
+profile's founding invariant itself.
+
+- **The wall is now measured on the write-set (R8-B1).** The driver checked every formal
+  property of a phase's output — commits, prefixes, tracker references, statuses, the Log's
+  shape — but never **which paths** the phase touched. The review's fixture: the Final
+  Reviewer edits `src.txt`, self-approves, and the flight ends `rc=0 status=DONE
+  pushed_refs=1` — reviewer-authored code, published, that no independent family ever judged.
+  Worse than unverified, it was permitted by construction: the default reviewer policy is
+  `acceptEdits` over the whole repository. The fork was decided with the operator
+  (2026-08-20): enforce **three edges** mechanically, rather than declare the wall procedural
+  in v1 and lean on the human who promotes the draft PR. After every attempt the driver
+  measures the write-set — the `git diff` between the phase snapshot and `HEAD`; the
+  clean-tree backstop makes that diff the attempt's whole write-set — and refuses: a reviewer
+  (3/5/7/9) that touched anything besides the testplan and the plan, a Test Writer (4) that
+  touched anything besides test paths and the testplan, an Implementer (8) that touched a
+  test path. A refusal is a **failed attempt** — reset to the snapshot, retry, ladder, stop —
+  so a violating edit never survives into the flight, and the refusal names the role and the
+  path. No general ACL mechanism: three edges, and nothing else.
+- **What counts as a test path is a project fact — so it is versioned config, not driver
+  code.** The paths live in `.ai/wall.env` (`AP_WALL_TESTS`): entries `dir/` (prefix),
+  `*suffix`, or an exact path, parsed like the machine binding — strict grammar, fail-fast —
+  and **fail-closed** both ways: no `wall.env`, no takeoff; a path git has to quote is
+  refused, never guessed. `models.env` was rejected as its home (a repository fact in a
+  gitignored machine file — two machines could silently enforce different walls) and so was
+  `kit.json` (JSON read with sed is the exact pattern this same review criticized).
+- **The permission policy does not carry the wall — and now says so.** Restricting
+  `AP_CLAUDE_ARGS` so reviewers cannot write outside `.ai/plans/` was considered and
+  dropped: every reviewer needs the shell (phase 9 runs the full suite, typecheck, lint),
+  and a session with a shell can write anywhere regardless of the edit-permission surface —
+  a path-scoped policy would be a fence with an open gate, and the argument grammar
+  deliberately cannot even express one. Enforcement lives in the driver's own measurement,
+  harness-independent; the policy stays what it is, a sandbox default.
+- **`green-whole-file` was a live mutant, not an equivalent survivor (R8-M2).** The seventh
+  round's explanation claimed the mutant strictly more refusing than the shipped predicate;
+  the review disproved it with a re-entry fixture — a stale in-Log row still last, the new
+  row inserted *above* the Log heading. Current code refuses (phase 8 added no new **in-Log**
+  row); the mutant counts the outside row as new and publishes on the stale proof. The
+  explanation below is withdrawn, the exact fixture is now a behavior scenario, and the
+  mutant is killed instead of explained.
+
+The wall is the **eighth safety property** of the partition below, with its own mutants: the
+check disabled, each of the three edges disabled, each entry form (prefix, suffix) disabled,
+the quote-refusal disabled, the config made optional — and, on the harness side, the review's
+own one-line actor mutant (the default final review appends a line to `src.txt`), which
+previously survived the whole suite and now fails it wholesale.
+
 ### What the behavior suite is a safety case for
 
 Mutation testing over a 780-line script does not converge: a survivor exists for every line no
 assertion pins, so each round can produce a fresh table indefinitely. The suite is therefore
-declared complete against **seven safety properties**, each of which must carry at least one
+declared complete against **eight safety properties**, each of which must carry at least one
 mutation-killing assertion: publication integrity, entry preconditions, caps and routing,
-terminal state and lock, configuration fail-fast, report honesty, and — added in the seventh
-round — audit grammar and workspace hygiene (every commit of a phase carries the semantic
-prefix and the tracker reference; a failed attempt leaves nothing behind for the retry).
-Survivors outside those seven are recorded here as known-unprotected lines, not as open
-findings.
+terminal state and lock, configuration fail-fast, report honesty, audit grammar and workspace
+hygiene (added in the seventh round: every commit of a phase carries the semantic prefix and
+the tracker reference; a failed attempt leaves nothing behind for the retry), and — added in
+the eighth round — the **hard wall** (reviewers write only the two flight artifacts, the Test
+Writer only test paths and the testplan, the Implementer never a test path; the wall config is
+fail-closed). Survivors outside those eight are recorded here as known-unprotected lines, not
+as open findings.
 
 One property named by the seventh review is deliberately **outside** this partition: artifact
 inertness across `/switch-profile`. It is a kit-level rule carried by the chapters and by
@@ -379,19 +433,24 @@ inertness across `/switch-profile`. It is a kit-level rule carried by the chapte
 reads a foreign-profile artifact, because a flight requires a fresh feature name. `verify-kit`
 does not check it either, and no mutant here can. It belongs to the kit's own review surface.
 
-Mutation evidence, all against the current suite — **301 assertions**, 0 failures unmutated
-— produced by `tests/driver/mutants.sh` (one exact sed program per row; the last row mutates
-the test actor instead of the driver):
+Mutation evidence, all against the current suite — **331 assertions**, 0 failures unmutated
+— produced by `tests/driver/mutants.sh` (one exact sed program per row; the two `actor-…`
+rows mutate the test actor instead of the driver):
 
 | Mutant (`tests/driver/mutants.sh` id) | Property | Failures |
 |---|---|---:|
-| `harness-one-family` | entry/dispatch | 84 |
+| `harness-one-family` | entry/dispatch | 90 |
+| `actor-final-review-writes-code` | hard wall | 41 |
 | `log-tail-ignored` | publication | 20 |
+| `wall-check-off` | hard wall | 19 |
 | `log-tail-setext` | publication | 13 |
+| `wall-reviewer-edge` | hard wall | 8 |
 | `log-tail-atx` | publication | 7 |
 | `log-last-line` | publication | 7 |
 | `nonce-check` | entry | 7 |
+| `artifact8-no-new-row` | publication | 6 |
 | `flightenv-unvalidated` | config fail-fast | 6 |
+| `wall-implementer-edge` | hard wall | 6 |
 | `nul-rejection` | entry | 5 |
 | `route-plan-to-2` | routing | 5 |
 | `lock-release` | terminal state/lock | 5 |
@@ -406,8 +465,9 @@ the test actor instead of the driver):
 | `log-fence-length` | publication | 3 |
 | `log-fence-infostring` | publication | 3 |
 | `log-atx-max-six` | publication | 3 |
-| `artifact8-no-new-row` | publication | 3 |
+| `green-whole-file` | publication | 3 |
 | `ladder-before-primary` | entry | 3 |
+| `wall-test-writer-edge` | hard wall | 3 |
 | `log-indented-atx` | publication | 2 |
 | `log-comment-not-opaque` | publication | 2 |
 | `entry3-adr` | entry | 2 |
@@ -415,25 +475,21 @@ the test actor instead of the driver):
 | `entry8-log-shape` | entry | 2 |
 | `edge-cap-off-by-one` | caps | 2 |
 | `retry-clean` | audit/hygiene | 2 |
+| `wall-prefix-entry` | hard wall | 2 |
+| `wall-suffix-entry` | hard wall | 2 |
+| `wall-quote-guard` | hard wall | 2 |
 | `report-counters` | report honesty | 2 |
 | `artifact4-prefix` | publication | 1 |
 | `artifact8-prefix` | publication | 1 |
 | `artifact8-position` | publication | 1 |
 | `push-by-name` | publication | 1 |
+| `wall-env-optional` | hard wall | 1 |
 | `report-verdict` | report honesty | 1 |
-| `green-whole-file` | publication | 0 — survivor |
 | `cleanup-arm` | terminal state/lock | 0 — survivor |
 | `actor-ladder-scope` | (test harness) | 0 — survivor |
 
-Three mutants survive, and each is a statement, not an omission:
+Two mutants survive, and each is a statement, not an omission:
 
-- **`green-whole-file`** — dropping `head > 0 &&` from the row count. It admits nothing: the
-  count feeds only `-eq` (blocked branches) and `-gt` (phase 8 proceed), both of which shift by
-  the same offset, and the proceed side still demands the row be the file's last non-blank
-  line, which a row above the Log heading can never be. The mutant is strictly *more* refusing
-  than the current code, so no assertion can catch it without asserting an acceptance no
-  scenario needs. The guard stays because "a row outside the Log is not a proof" is contract
-  text (fourth round), not because a test defends it.
 - **`cleanup-arm`** — the `RUNNING` → `STOPPED` conversion on an abnormal exit: the declared gap
   below, unchanged.
 - **`actor-ladder-scope`** — the test actor's per-invocation ladder ordering. The sixth round
@@ -443,6 +499,18 @@ Three mutants survive, and each is a statement, not an omission:
   It is a **harness** invariant — it exists to keep a legitimate re-entry from being read as a
   rank decrease (a false failure), not to catch a driver defect — and no current scenario
   distinguishes it. Recorded here rather than renumbered silently.
+
+`green-whole-file` — dropping `head > 0 &&` from the row count — was declared an equivalent
+survivor through two rounds, with an argument that it was strictly *more* refusing. The eighth
+review disproved that argument (see the 2026-08-20 amendments): on a re-entry whose stale
+in-Log row is still last, the mutant counts a row inserted *above* the Log heading as the new
+row phase 8 must add, and publishes on the stale proof. That exact fixture is now a behavior
+scenario, and the mutant fails it — the guard is defended by a test again, not by an
+explanation. One more mutant earned its row the honest way this round: `wall-suffix-entry`
+initially survived because `wall_is_test` expanded the entry list unquoted, handing `*suffix`
+entries to the shell's globber — matching whatever files happened to exist instead of the
+entry itself. The matcher now walks the list as a string, and the scenario plants a root file
+the glob would have eaten, so the survivor was a live defect found by its own mutant.
 
 Known residuals and declared gaps:
 

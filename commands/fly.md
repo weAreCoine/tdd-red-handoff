@@ -74,6 +74,21 @@ the roster row it implements — the roster stays the human record. Before launc
 operator the full mapping, roster row → binding key (ladders included): a ladder recorded in
 the roster but absent here would silently never be tried.
 
+**The wall (`.ai/wall.env`, versioned).** The driver refuses to fly without the project's
+recorded test paths — the machine-readable half of the hard wall, which the driver enforces on
+every phase's write-set (`autopilot.md § The wall, measured on the write-set`). If
+`.ai/wall.env` is missing, derive the entries from `.ai/PROJECT_ARCHITECTURE.md § Testing`,
+confirm them with the operator, and write:
+
+```sh
+# .ai/wall.env — the wall's test paths (versioned: the same wall on every clone)
+AP_WALL_TESTS='tests/'   # space-separated entries: 'dir/' prefix, '*suffix', or an exact path
+```
+
+Unlike `models.env` this file is **versioned** — it goes into the phase-1 commit (Phase C),
+never into `.gitignore`. The driver fail-closes on it: a missing file, an empty value, `..`,
+or a character outside the entry grammar stops the flight at startup.
+
 **Permission policy** (ADR-0008 amendment): by default the flight runs guarded — producers on
 codex's workspace-write sandbox with automatic approvals (`--approve-for-me`), reviewers on
 claude with the project's Claude Code sandbox plus `--permission-mode acceptEdits`. That
@@ -124,8 +139,8 @@ only what the artifacts say, and nobody attends them. Then, in order:
    legitimately writes more than the design record — glossary/domain-model updates and project
    ADRs are normal outcomes, and they belong in this same atomic commit (an uncommitted file
    would fail the driver's clean-tree precondition). Anything listed that is **not** a phase-1
-   output (design record, glossary, project ADRs, `.gitignore`) → STOP, show the list to the
-   operator, and do not launch. `flight.env` carries only the tracker reference (charset
+   output (design record, glossary, project ADRs, `.gitignore`, `.ai/wall.env` when Phase B
+   wrote it) → STOP, show the list to the operator, and do not launch. `flight.env` carries only the tracker reference (charset
    `[A-Za-z0-9_#-]`) and lives under the ignored `.ai/autopilot/`; the base branch is
    `develop` by contract, not by configuration.
 
