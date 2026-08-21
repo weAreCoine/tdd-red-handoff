@@ -132,6 +132,7 @@ wall-quote-guard	bin/autopilot-driver.sh	/refuses what it cannot read/s@; return
 wall-env-optional	bin/autopilot-driver.sh	/wall is versioned project config/s@|| die@|| :@	hard wall
 mask-takeoff-off	bin/autopilot-driver.sh	/index_mask_ok || die/s@index_mask_ok@:@	hard wall
 mask-attempt-off	bin/autopilot-driver.sh	/index_mask_ok || fail/s@index_mask_ok@:@	hard wall
+mask-skipworktree-arm	bin/autopilot-driver.sh	/ls-files -v/s@(\[a-z\]|S) @(\[a-z\]) @	hard wall
 report-counters	bin/autopilot-driver.sh	/^      "\$(show_int edges)" "\$MAX_EDGES"/s@.*@      0 0 0 0 0 0@	report honesty
 report-journey	bin/autopilot-driver.sh	/printf '## Journey/s@.*@    :@	report honesty
 report-verdict	bin/autopilot-driver.sh	/printf 'Last verdict/s@.*@      :@	report honesty

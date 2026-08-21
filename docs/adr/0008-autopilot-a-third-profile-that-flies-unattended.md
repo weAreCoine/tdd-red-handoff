@@ -553,6 +553,13 @@ missing edge, but the measurement channel itself.
   here: a new measurement-channel bypass inside the adversarial class lands in that
   residual, not in the findings.
 
+The eleventh round — the confirmation run under the declared boundary, cross-family again —
+accepted the boundary, reproduced the suite and both mask mutants exactly, and returned one
+pinning gap (R11-1, major): both mask scenarios exercised only the `assume-unchanged` bit,
+so a detector stripped of its `S` arm still passed the whole suite — a guarded bit nothing
+guarded. The takeoff scenario now seeds `skip-worktree` instead, giving each detector arm a
+scenario of its own, and the arm carries its own mutant (`mask-skipworktree-arm`), killed.
+
 ### What the behavior suite is a safety case for
 
 Mutation testing over a 780-line script does not converge: a survivor exists for every line no
@@ -633,6 +640,7 @@ rows mutate the test actor instead of the driver):
 | `wall-prefix-entry` | hard wall | 2 |
 | `wall-suffix-entry` | hard wall | 2 |
 | `wall-quote-guard` | hard wall | 2 |
+| `mask-skipworktree-arm` | hard wall | 2 |
 | `report-counters` | report honesty | 2 |
 | `artifact4-shape` | publication | 1 |
 | `artifact8-shape` | publication | 1 |

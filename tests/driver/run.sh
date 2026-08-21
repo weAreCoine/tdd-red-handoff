@@ -1718,12 +1718,13 @@ chknot 'masked test rewrite: phase 6 never passed' log_has 'phase 6 ok'
 chk 'masked test rewrite: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
 
 # A mask seeded before launch (an interrupted tamper, an operator experiment)
-# refuses takeoff, before any state is written.
+# refuses takeoff, before any state is written. This one uses the OTHER bit —
+# skip-worktree — so each detector arm has a scenario of its own (R11-1).
 scrub_env; make_flight masktakeoff
-(cd "$G" && git update-index --assume-unchanged .ai/plans/demo.adr.md)
+(cd "$G" && git update-index --skip-worktree .ai/plans/demo.adr.md)
 run_driver
 chk 'pre-seeded mask: exit 2' test "$RC" -eq 2
-chk 'pre-seeded mask: the mask is named' out_has "index mask ('h .ai/plans/demo.adr.md')"
+chk 'pre-seeded mask: the skip-worktree bit is named' out_has "index mask ('S .ai/plans/demo.adr.md')"
 
 echo '# R8-M1: the proof walk — artifact appends survive the stamp, code commits refuse it'
 # The false negative the row-proof had: phase 9 logs its notes and the flight
