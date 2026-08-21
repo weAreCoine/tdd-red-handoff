@@ -1445,7 +1445,10 @@ if [ -f "$FLIGHT_DIR/tried" ]; then
     i=0; while [ $i -lt 12 ]; do echo "- case $i: input, expected value, boundary noted"; i=$((i+1)); done
     printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n'
   } > "$TESTPLAN"
-  git add -A && git commit -qm 'feat: demo test inventory (TEST-1)'
+  # add ONLY the testplan: an add -A would commit a surviving leftover, the
+  # phase-2 wall edge would refuse that commit, and the reset — not git clean —
+  # would then remove the leftover, silently absorbing the retry-clean mutant
+  git add "$TESTPLAN" && git commit -qm 'feat: demo test inventory (TEST-1)'
 else
   : > "$FLIGHT_DIR/tried"
   echo 'half-written artifact from a worker that never committed' > leftover.txt
@@ -1616,6 +1619,79 @@ AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
 run_driver -s 8
 chk 'undecidable path: STOPPED' st STOPPED
 chk 'undecidable path: refused as unreadable, not guessed' log_has 'refuses what it cannot read'
+
+echo '# R9: the producer phases are walled too — no dispatched phase writes unmeasured'
+# The ninth review's blocker fixture: a full routed flight, no -s, in which
+# phase 6 replaces the gated RED tests with a vacuous assertion AFTER the test
+# gate — a write-set the phase-9 suite run would certify, not catch. The wall
+# must refuse it as an edge, exactly like the reviewer and implementer edges.
+scrub_env; make_flight wall6
+SC=$BASE/sc-wall6; mkdir -p "$SC"
+cat > "$SC/phase6" <<'EOF'
+{
+  printf '# Plan — demo\n\n> **Status:** RED\n\n## 1. Goal\n\nTurn the red tests green.\n\n## 3. Constraints\n\n'
+  i=0; while [ $i -lt 12 ]; do printf -- '- constraint %s derived from the testplan\n' $i; i=$((i+1)); done
+} > "$PLAN"
+printf -- '- stub: plan issued\n' >> "$TESTPLAN"
+printf 'assert True\n' > tests.txt
+git add -A && git commit -qm 'feat: demo implementation plan (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'planner rewrote the gated tests: STOPPED' st STOPPED
+chk 'planner rewrote the gated tests: the wall names role and path' log_has "Handoff Planner touched 'tests.txt'"
+chknot 'planner rewrote the gated tests: phase 6 never passed' log_has 'phase 6 ok'
+chk 'planner rewrote the gated tests: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# The designer side of the same class: phase 2 committing application code.
+scrub_env; make_flight wall2
+SC=$BASE/sc-wall2; mkdir -p "$SC"
+cat > "$SC/phase2" <<'EOF'
+{
+  printf '# Test plan — demo\n\n> **Status:** DRAFT\n\n## Inventory\n\n'
+  i=0; while [ $i -lt 12 ]; do printf -- '- case %s: input, expected value, boundary noted\n' $i; i=$((i+1)); done
+  printf '\n## 6. Log (append-only)\n\n- stub: inventory written\n'
+} > "$TESTPLAN"
+echo 'designer-authored code' >> src.txt
+git add -A && git commit -qm 'feat: demo test inventory (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'designer wrote code: STOPPED' st STOPPED
+chk 'designer wrote code: the wall names role and file' log_has "TestPlan Designer touched 'src.txt'"
+chknot 'designer wrote code: phase 2 never passed' log_has 'phase 2 ok'
+
+# R9-2: the Implementer cannot rewrite the criteria phase 9 judges against —
+# the gated plan and the design record are refused paths for phase 8, even
+# though neither is a test path.
+scrub_env; make_flight wall8plan
+SC=$BASE/sc-wall8plan; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+sed 's/^Turn the red tests green\.$/Whatever the Implementer felt like building./' "$PLAN" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'implementer rewrote the plan: STOPPED' st STOPPED
+chk 'implementer rewrote the plan: the wall names role and path' log_has "Implementer touched '.ai/plans/demo.md'"
+chk 'implementer rewrote the plan: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+scrub_env; make_flight wall8adr
+SC=$BASE/sc-wall8adr; mkdir -p "$SC"
+cat > "$SC/phase8" <<'EOF'
+echo 'impl stub' >> src.txt
+printf -- '- rewritten by the Implementer to match the code\n' >> "$ADR"
+printf -- '- **Implementation:** GREEN — 2026-08-15, full suite + typecheck (Implementer)\n' >> "$TESTPLAN"
+git add -A && git commit -qm 'feat: demo implementation (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+(cd "$G" && seed_gated_artifacts gated)
+run_driver -s 8
+chk 'implementer rewrote the design record: STOPPED' st STOPPED
+chk 'implementer rewrote the design record: the wall names role and path' log_has "Implementer touched '.ai/plans/demo.adr.md'"
 
 echo '# R8-M1: the proof walk — artifact appends survive the stamp, code commits refuse it'
 # The false negative the row-proof had: phase 9 logs its notes and the flight

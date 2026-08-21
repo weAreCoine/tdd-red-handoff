@@ -553,16 +553,17 @@ reject_routes() { # backward routes a REVIEWER may take
 producer_route() { case $1 in 4) echo testplan ;; 8) echo plan ;; *) echo '' ;; esac; }
 route_phase() { case $1 in testplan) echo 2 ;; tests) echo 4 ;; plan) echo 6 ;; implementation) echo 8 ;; esac; }
 
-# --- the wall on the write-set (ADR-0008, R8-B1) -----------------------------
+# --- the wall on the write-set (ADR-0008, R8-B1; edge set completed by R9) ---
 # The hard wall is not a prompt instruction here: after each attempt the driver
 # measures WHAT the phase touched — the diff between the phase snapshot and
 # HEAD; the clean-tree backstop makes that diff the attempt's whole write-set —
-# and refuses the attempt on three edges: reviewers (3/5/7/9) write only the
-# two flight artifacts, the Test Writer (4) writes only test paths and the
-# testplan, the Implementer (8) never writes a test path. What counts as a
-# test path is the project's recorded AP_WALL_TESTS; a path the driver cannot
-# read (git had to quote it) is refused, never guessed. Phases 2 and 6 build
-# single artifacts already pinned by their artifact backstops.
+# and refuses the attempt on an edge per dispatched phase: reviewers (3/5/7/9)
+# write only the two flight artifacts, the TestPlan Designer (2) only the
+# testplan, the Handoff Planner (6) only the plan and the testplan, the Test
+# Writer (4) only test paths and the testplan, and the Implementer (8) neither
+# a test path nor the plan or design record it is judged against. What counts
+# as a test path is the project's recorded AP_WALL_TESTS; a path the driver
+# cannot read (git had to quote it) is refused, never guessed.
 wall_is_test() { # $1 = path -> 0 when an AP_WALL_TESTS entry claims it. The
                  # list is walked as a string, never expanded unquoted: the
                  # shell's globber would turn a '*suffix' entry into whatever
@@ -582,13 +583,17 @@ wall_is_test() { # $1 = path -> 0 when an AP_WALL_TESTS entry claims it. The
 }
 wall_ok() { # $1 = phase, $2 = snapshot sha; WALL_WHY set on refusal
   WALL_WHY=''
-  case $1 in 3|4|5|7|8|9) ;; *) return 0 ;; esac
   while IFS= read -r wp; do
     [ -n "$wp" ] || continue
     case $wp in
       \"*) WALL_WHY="phase $1 touched a path git had to quote ($wp) — the wall refuses what it cannot read"; return 1 ;;
     esac
     case $1 in
+      2)
+        if [ "$wp" != "$TESTPLAN" ]; then
+          WALL_WHY="TestPlan Designer touched '$wp' — the TestPlan Designer writes only $TESTPLAN"
+          return 1
+        fi ;;
       3|5|7|9)
         if [ "$wp" != "$TESTPLAN" ] && [ "$wp" != "$PLAN" ]; then
           WALL_WHY="$(phase_role "$1") touched '$wp' — a reviewer writes only $TESTPLAN and $PLAN"
@@ -599,9 +604,18 @@ wall_ok() { # $1 = phase, $2 = snapshot sha; WALL_WHY set on refusal
           WALL_WHY="Test Writer touched '$wp' — outside the testplan and the recorded test paths ($WALL_ENV)"
           return 1
         fi ;;
+      6)
+        if [ "$wp" != "$PLAN" ] && [ "$wp" != "$TESTPLAN" ]; then
+          WALL_WHY="Handoff Planner touched '$wp' — the Handoff Planner writes only $PLAN and $TESTPLAN"
+          return 1
+        fi ;;
       8)
         if [ "$wp" != "$TESTPLAN" ] && wall_is_test "$wp"; then
           WALL_WHY="Implementer touched test path '$wp' — the Implementer never touches tests"
+          return 1
+        fi
+        if [ "$wp" = "$PLAN" ] || [ "$wp" = "$ADR" ]; then
+          WALL_WHY="Implementer touched '$wp' — the gated plan and the design record are the criteria phase 9 judges against, never the Implementer's to rewrite"
           return 1
         fi ;;
     esac

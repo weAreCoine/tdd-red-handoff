@@ -384,7 +384,9 @@ profile's founding invariant itself.
   touched anything besides test paths and the testplan, an Implementer (8) that touched a
   test path. A refusal is a **failed attempt** — reset to the snapshot, retry, ladder, stop —
   so a violating edit never survives into the flight, and the refusal names the role and the
-  path. No general ACL mechanism: three edges, and nothing else.
+  path. No general ACL mechanism: three edges, and nothing else. *(The ninth review disproved
+  the "nothing else": phases 2 and 6 had no edge at all — see Amendments 2026-08-21, ninth
+  review. The wall now carries an edge for every dispatched phase.)*
 - **What counts as a test path is a project fact — so it is versioned config, not driver
   code.** The paths live in `.ai/wall.env` (`AP_WALL_TESTS`): entries `dir/` (prefix),
   `*suffix`, or an exact path, parsed like the machine binding — strict grammar, fail-fast —
@@ -446,8 +448,10 @@ the **driver's acceptance**, not the model's claim, and it exists only if every 
 rejected too: it would reopen R3-B3 — the proof must travel with the branch.
 
 What this dissolves: phase 9's notes no longer consume the proof (artifact-only commits walk
-through — the false refusal above is gone), one manual code commit past the stamp now refuses
-a cold `-s 9` (the round-4 residual, closed), and the Implementer's GREEN row in the Log
+through — the false refusal above is gone), one manual **code** commit past the stamp now
+refuses a cold `-s 9` (the code-drift half of the round-4 residual; its plan-rewrite half
+survives the walk by design — the walk is transparent to artifact commits — and returns to
+the residual list below, per the ninth review's R9-3), and the Implementer's GREEN row in the Log
 becomes what it always looked like — the narrative record, every positional instruction
 deleted from the chapter, the template, and the phase-8 prompt. The Log's **shape guard**
 stays in full (one canonical heading, last section, no open containers, refuse-not-guess): it
@@ -457,6 +461,56 @@ last-line bit — is deleted outright, along with the battery of row-hiding scen
 required; their successors pin the stamp instead (no text authorizes phase 9; the walk
 survives artifact appends and refuses code commits, transplants, prose lookalikes, merges,
 and the bound; the reserved key is refused on producer and reviewer commits alike).
+
+## Amendments (2026-08-21 — ninth review: the wall covers every dispatched phase)
+
+The ninth review was an exit review: a judgment on the declared perimeter — the eight safety
+properties, the mutation table, the declared gaps — rather than an open hunt. It confirmed
+the whole completion-proof family (suite re-run, the eight proof/stamp mutation rows
+re-measured exactly, every R8-M1 claim checked against code and template) and found the
+eighth round's own property incomplete on a side no round had considered:
+
+- **The producer phases had no edge (R9-1, blocker).** `wall_ok`'s selector exempted phases 2
+  and 6 outright, on the recorded — and wrong — theory that their artifact backstops already
+  pinned them: the backstops check the artifact, never the write-set. The review's fixture
+  needed no `-s` and no operator: a routed flight in which phase 6, after the test gate,
+  replaces the gated RED tests with a vacuous assertion — which phase 9's full-suite run then
+  *certifies*: `DONE`, pushed, zero refusals. That is the founding invariant (no artifact
+  judged by the family that produced it) broken in the normal flow. The wall now carries an
+  edge for every dispatched phase: the TestPlan Designer (2) writes only the testplan, the
+  Handoff Planner (6) only the plan and the testplan; the exempting selector is gone. The
+  eighth round's "three edges, and nothing else" is superseded — the "nothing else" was the
+  hole. Eight rounds missed it for a structural reason worth recording: no mutant can exist
+  for an edge that does not exist.
+- **The Implementer could rewrite its own judging criteria (R9-2).** Phase 8's edge refused
+  only test paths; the gated plan and the design record — the two documents phase 9 judges
+  the implementation against — were writable, and `artifact_ok 8` pins their statuses and
+  Gate row, never their content. Alone this is bounded (the RED tests still constrain the
+  code); compounded with R9-1 nothing mechanical survives — phase 6 neuters the tests, phase
+  8 rewrites the criterion. The edge now also refuses the plan and the design record: the
+  Implementer's only artifact write is the testplan Log, exactly what the chapter always
+  stated.
+- **One closure was overstated (R9-3).** The R8-M1 amendment declared the round-4 residual
+  closed; only its code-drift half is. The residual's own named scenario — a plan rewritten
+  after the stamp, then a cold `-s 9` — still rides the previous implementation's stamp,
+  because the proof walk is deliberately transparent to artifact-only commits. The claim is
+  reworded above and the surviving half returns to the residual list below: it needs a
+  deliberate `-s 9` (the routed path re-runs phase 8 after any plan rewrite), so it is
+  recovery surface, not a publication defect.
+
+The two new edges and the narrowed phase-8 edge are pinned like the rest of the wall:
+behavior scenarios shaped like the review's own fixtures (phase 6 rewriting the gated tests
+inside a full routed flight; phase 2 committing code; phase 8 rewriting the plan and the
+design record) and one mutant per edge — `wall-planner-edge`, `wall-designer-edge`,
+`wall-implementer-plan-edge` — in the re-measured table below.
+
+Re-measuring exposed one interaction inside the harness itself: the retry-hygiene scenario's
+retry committed with `git add -A`, and under the new phase-2 edge that commit — now carrying
+the surviving leftover — was refused by the wall, whose snapshot reset then removed the
+leftover that `git clean` had been the only remover of. `retry-clean` briefly measured 0 — a
+survivor made, not found. The scenario now commits only the testplan, so the leftover stays
+untracked and only the clean path can remove it; the mutant is killed again, by exactly the
+line it was written to pin.
 
 ### What the behavior suite is a safety case for
 
@@ -469,10 +523,12 @@ caps and routing,
 terminal state and lock, configuration fail-fast, report honesty, audit grammar and workspace
 hygiene (added in the seventh round: every commit of a phase carries the semantic prefix and
 the tracker reference; a failed attempt leaves nothing behind for the retry), and — added in
-the eighth round — the **hard wall** (reviewers write only the two flight artifacts, the Test
-Writer only test paths and the testplan, the Implementer never a test path; the wall config is
-fail-closed). Survivors outside those eight are recorded here as known-unprotected lines, not
-as open findings.
+the eighth round, completed in the ninth — the **hard wall** (an edge per dispatched phase:
+reviewers write only the two flight artifacts, the TestPlan Designer only the testplan, the
+Handoff Planner only the plan and the testplan, the Test Writer only test paths and the
+testplan, the Implementer neither a test path nor the plan or design record; the wall config
+is fail-closed). Survivors outside those eight are recorded here as known-unprotected lines,
+not as open findings.
 
 One property named by the seventh review is deliberately **outside** this partition: artifact
 inertness across `/switch-profile`. It is a kit-level rule carried by the chapters and by
@@ -480,18 +536,18 @@ inertness across `/switch-profile`. It is a kit-level rule carried by the chapte
 reads a foreign-profile artifact, because a flight requires a fresh feature name. `verify-kit`
 does not check it either, and no mutant here can. It belongs to the kit's own review surface.
 
-Mutation evidence, all against the current suite — **333 assertions**, 0 failures unmutated
+Mutation evidence, all against the current suite — **345 assertions**, 0 failures unmutated
 — produced by `tests/driver/mutants.sh` (one exact sed program per row; the two `actor-…`
 rows mutate the test actor instead of the driver):
 
 | Mutant (`tests/driver/mutants.sh` id) | Property | Failures |
 |---|---|---:|
-| `harness-one-family` | entry/dispatch | 95 |
+| `harness-one-family` | entry/dispatch | 96 |
 | `stamp-not-written` | publication | 47 |
 | `actor-final-review-writes-code` | hard wall | 46 |
 | `entry9-log-shape` | entry | 34 |
+| `wall-check-off` | hard wall | 31 |
 | `log-tail-ignored` | publication | 22 |
-| `wall-check-off` | hard wall | 19 |
 | `proof-vacuous` | publication | 16 |
 | `log-tail-setext` | publication | 15 |
 | `wall-reviewer-edge` | hard wall | 8 |
@@ -505,6 +561,7 @@ rows mutate the test actor instead of the driver):
 | `route-plan-to-2` | routing | 5 |
 | `lock-release` | terminal state/lock | 5 |
 | `report-journey` | report honesty | 5 |
+| `wall-implementer-plan-edge` | hard wall | 5 |
 | `log-fence-infostring` | publication | 4 |
 | `log-html-allowed` | publication | 4 |
 | `phase2-log-shape` | publication | 4 |
@@ -512,12 +569,15 @@ rows mutate the test actor instead of the driver):
 | `nontrivial-existence` | entry | 4 |
 | `lock-acquire` | terminal state/lock | 4 |
 | `commit-prefix-grammar` | audit/hygiene | 4 |
+| `wall-planner-edge` | hard wall | 4 |
 | `log-fence-length` | publication | 3 |
 | `log-atx-max-six` | publication | 3 |
 | `log-comment-not-opaque` | publication | 3 |
 | `proof-walk-any-path` | publication | 3 |
 | `ladder-before-primary` | entry | 3 |
 | `wall-test-writer-edge` | hard wall | 3 |
+| `wall-designer-edge` | hard wall | 3 |
+| `retry-clean` | audit/hygiene | 3 |
 | `log-indented-atx` | publication | 2 |
 | `artifact8-proceed` | publication | 2 |
 | `proof-any-parent` | publication | 2 |
@@ -527,7 +587,6 @@ rows mutate the test actor instead of the driver):
 | `entry7-adr` | entry | 2 |
 | `entry8-log-shape` | entry | 2 |
 | `edge-cap-off-by-one` | caps | 2 |
-| `retry-clean` | audit/hygiene | 2 |
 | `wall-prefix-entry` | hard wall | 2 |
 | `wall-suffix-entry` | hard wall | 2 |
 | `wall-quote-guard` | hard wall | 2 |
@@ -567,6 +626,12 @@ Known residuals and declared gaps:
 
 - ~~A *direct* `-s 9` can still ride an earlier attempt's in-Log row~~ — closed by R8-M1: the
   proof walk refuses any code commit between `HEAD` and the acceptance stamp.
+- A cold `-s 9` after a plan rewrite still rides the previous implementation's stamp (the
+  surviving half of the round-4 residual, restored by R9-3): the proof walk is deliberately
+  transparent to artifact-only commits, so rewriting the plan does not invalidate the stamped
+  implementation — phase 9 then judges old code against a new criterion. Reaching it requires
+  a deliberate `-s 9`; the routed path re-runs phase 8 after any plan rewrite, so this is
+  recovery surface, like the `-s 2` entry below.
 - A direct `-s 2` relaunch aimed at a **historical** feature overwrites its artifacts (R8-M3):
   the fresh-name check of extended inertness lives in `/fly`, the only entry of a *new*
   flight, and the driver cannot tell a stopped flight from a closed one — it only sees that

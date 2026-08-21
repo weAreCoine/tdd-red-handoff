@@ -123,6 +123,9 @@ wall-check-off	bin/autopilot-driver.sh	/wall_ok "\$p" "\$snap"/s@wall_ok "\$p" "
 wall-reviewer-edge	bin/autopilot-driver.sh	/"\$wp" != "\$PLAN" \]; then$/s@; then@ \&\& false; then@	hard wall
 wall-test-writer-edge	bin/autopilot-driver.sh	/! wall_is_test "\$wp"; then$/s@; then@ \&\& false; then@	hard wall
 wall-implementer-edge	bin/autopilot-driver.sh	/\] && wall_is_test "\$wp"; then$/s@; then@ \&\& false; then@	hard wall
+wall-designer-edge	bin/autopilot-driver.sh	/if \[ "\$wp" != "\$TESTPLAN" \]; then$/s@; then@ \&\& false; then@	hard wall
+wall-planner-edge	bin/autopilot-driver.sh	/"\$wp" != "\$PLAN" \] && \[ "\$wp" != "\$TESTPLAN" \]; then$/s@; then@ \&\& false; then@	hard wall
+wall-implementer-plan-edge	bin/autopilot-driver.sh	/"\$wp" = "\$PLAN" \] || \[ "\$wp" = "\$ADR" \]; then$/s@; then@ \&\& false; then@	hard wall
 wall-prefix-entry	bin/autopilot-driver.sh	/claims by prefix/s@return 0@:@	hard wall
 wall-suffix-entry	bin/autopilot-driver.sh	/claims by path suffix/s@return 0@:@	hard wall
 wall-quote-guard	bin/autopilot-driver.sh	/refuses what it cannot read/s@; return 1 ;;@ ;;@	hard wall

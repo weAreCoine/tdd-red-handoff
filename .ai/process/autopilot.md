@@ -131,15 +131,20 @@ harness-agnostic:
 The hard wall is not a prompt instruction under this profile. After every attempt the driver
 measures **what the phase actually touched** — the git diff between the phase's entry snapshot
 and its final commit; the clean-tree backstop makes that diff the attempt's whole write-set —
-and refuses the attempt on three edges:
+and refuses the attempt on an edge per dispatched phase — no phase writes unmeasured:
 
 - **Reviewers (phases 3, 5, 7, 9) write only the two flight artifacts** — the testplan and the
   plan. A final review that also "fixes" the code is not a review: the attempt fails, and the
   edit never survives into the flight.
+- **The TestPlan Designer (phase 2) writes only the testplan.**
 - **The Test Writer (phase 4) writes only test paths and the testplan.** Anything else — a
   helper in application code, a dependency manifest — is a refusal, not a convenience.
-- **The Implementer (phase 8) never writes a test path.** Its only testplan write is the Log
-  (its phase entry — the narrative GREEN row).
+- **The Handoff Planner (phase 6) writes only the plan and the testplan.** A planner that
+  "adjusts" the gated tests after the test gate has replaced a judge-family approval with
+  producer-family output: the attempt fails.
+- **The Implementer (phase 8) never writes a test path, the plan, or the design record.** The
+  plan and the design record are the criteria the final review judges against; its only
+  testplan write is the Log (its phase entry — the narrative GREEN row).
 
 What counts as a test path is a **project fact**, so it is not stated here: it is recorded in
 the versioned **`.ai/wall.env`** — one `AP_WALL_TESTS='…'` line, space-separated entries, each
