@@ -184,11 +184,27 @@ for v in "AP_MAX_GATE_REJECTS=$MAX_GATE_REJECTS" "AP_MAX_EDGES=$MAX_EDGES" \
   is_count "${v#*=}" || die "${v%%=*} must be a positive integer ('${v#*=}')"
 done
 
+# R10-1: the wall measures through git, and two index bits — assume-unchanged
+# (lowercase tag in ls-files -v) and skip-worktree (S) — make git hide
+# filesystem edits from status and diff: a masked test rewrite would pass the
+# clean-tree check and the wall while the tests that actually run differ from
+# the tree that gets pushed. The bits themselves are refused, fail-closed, at
+# takeoff (here) and at every acceptance; publication needs no third check
+# because it only follows the final phase's acceptance.
+index_mask_ok() { # MASK_WHY set on refusal
+  MASK_WHY=''
+  m=$(git ls-files -v | grep -E '^([a-z]|S) ' | head -n 1)
+  [ -z "$m" ] && return 0
+  MASK_WHY="tracked path carries a git index mask ('$m') — assume-unchanged/skip-worktree hide filesystem edits from the wall's measurements"
+  return 1
+}
+
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || die "not a git repo"
 [ "$branch" = "feature/$FEATURE" ] || die "on '$branch', expected 'feature/$FEATURE'"
 git show-ref --verify -q "refs/heads/$BASE_BRANCH" \
   || die "local branch '$BASE_BRANCH' missing (a tag is not a base) — its creation is a human act (ADR-0008)"
 [ -z "$(git status --porcelain)" ] || die "working tree not clean"
+index_mask_ok || die "$MASK_WHY"
 
 mkdir -p "$S/logs" "$S/verdicts" "$S/probes"
 if [ "$FORCE" -eq 1 ]; then rm -rf "$S/lock"; fi
@@ -806,6 +822,7 @@ run_phase() { # $1 = phase; sets ROUTE on success, stops the flight otherwise
       [ -z "$fail" ] && { artifact_ok "$p" "$route" || fail='expected artifact/status missing, trivial, or malformed for this route'; }
       [ -z "$fail" ] && [ "$(git rev-parse HEAD)" = "$snap" ] && fail='no commit (HEAD did not advance)'
       [ -z "$fail" ] && [ -n "$(git status --porcelain)" ] && fail='working tree not clean after the phase'
+      [ -z "$fail" ] && { index_mask_ok || fail="wall: $MASK_WHY"; }
       [ -z "$fail" ] && { wall_ok "$p" "$snap" || fail="wall: $WALL_WHY"; }
       if [ -z "$fail" ]; then
         # every commit of the phase carries the semantic prefix and the tracker

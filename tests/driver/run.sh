@@ -1693,6 +1693,38 @@ run_driver -s 8
 chk 'implementer rewrote the design record: STOPPED' st STOPPED
 chk 'implementer rewrote the design record: the wall names role and path' log_has "Implementer touched '.ai/plans/demo.adr.md'"
 
+echo '# R10-1: the wall measures through git — the index bits that blind git are refused'
+# The tenth review's fixture: phase 6 marks the gated tests assume-unchanged,
+# rewrites them on the filesystem, and commits only its lawful artifacts. The
+# clean-tree check and the write-set diff both see nothing — the mask itself
+# must be the refusal.
+scrub_env; make_flight mask6
+SC=$BASE/sc-mask6; mkdir -p "$SC"
+cat > "$SC/phase6" <<'EOF'
+git update-index --assume-unchanged tests.txt
+printf 'assert True\n' > tests.txt
+{
+  printf '# Plan — demo\n\n> **Status:** RED\n\n## 1. Goal\n\nTurn the red tests green.\n\n## 3. Constraints\n\n'
+  i=0; while [ $i -lt 12 ]; do printf -- '- constraint %s derived from the testplan\n' $i; i=$((i+1)); done
+} > "$PLAN"
+printf -- '- stub: plan issued\n' >> "$TESTPLAN"
+git add "$PLAN" "$TESTPLAN" && git commit -qm 'feat: demo implementation plan (TEST-1)'
+EOF
+AP_MAX_TRIES=1 STUB_SCENARIO_DIR=$SC; export AP_MAX_TRIES STUB_SCENARIO_DIR
+run_driver
+chk 'masked test rewrite: STOPPED' st STOPPED
+chk 'masked test rewrite: the mask itself is named' log_has "index mask ('h tests.txt')"
+chknot 'masked test rewrite: phase 6 never passed' log_has 'phase 6 ok'
+chk 'masked test rewrite: nothing pushed' test -z "$(git -C "$ORIGIN" for-each-ref)"
+
+# A mask seeded before launch (an interrupted tamper, an operator experiment)
+# refuses takeoff, before any state is written.
+scrub_env; make_flight masktakeoff
+(cd "$G" && git update-index --assume-unchanged .ai/plans/demo.adr.md)
+run_driver
+chk 'pre-seeded mask: exit 2' test "$RC" -eq 2
+chk 'pre-seeded mask: the mask is named' out_has "index mask ('h .ai/plans/demo.adr.md')"
+
 echo '# R8-M1: the proof walk — artifact appends survive the stamp, code commits refuse it'
 # The false negative the row-proof had: phase 9 logs its notes and the flight
 # stops; a cold -s 9 must still re-enter, because only artifacts changed since

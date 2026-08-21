@@ -154,6 +154,15 @@ It is versioned so every clone enforces the same wall, and **fail-closed**: with
 flight does not start, and a path the driver cannot read (git had to quote it) is refused,
 never guessed.
 
+The wall's measurements are git's own, so the two index bits that blind git —
+`assume-unchanged` and `skip-worktree` — are refused outright: a tracked path carrying
+either bit stops the flight at takeoff and fails the attempt at every acceptance. And the
+guarantee has a **declared boundary**: the wall stops a phase that strays out of its role;
+an actively adversarial session with a shell inside the working copy can attack the
+measurement channel itself in ways no in-repo check can close — that class is declared in
+the kit's design record (ADR-0008), and the backstop there is what it has always been: the
+draft PR an operator promotes, and the project's CI.
+
 A wall refusal is a **failed attempt, not a stopped flight**: the driver resets to the phase
 snapshot and retries — the same model, then the recorded ladder, then the stop — exactly like
 any other backstop, and the violating commits never survive. The refusal names the role and

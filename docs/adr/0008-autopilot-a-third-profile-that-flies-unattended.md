@@ -512,6 +512,47 @@ survivor made, not found. The scenario now commits only the testplan, so the lef
 untracked and only the clean path can remove it; the mutant is killed again, by exactly the
 line it was written to pin.
 
+## Amendments (2026-08-21 — tenth review: R10-1, and the wall's declared threat boundary)
+
+The tenth review — the first run by the other model family, applying the kit's own founding
+invariant to the kit itself — confirmed the ninth round's fixes in full (every edge verified,
+suite and the three new mutants reproduced exactly) and found the next stratum down: not a
+missing edge, but the measurement channel itself.
+
+- **Git's index bits blind every check the driver has (R10-1, blocker).** The wall diffs
+  committed trees; the clean-tree backstop reads `git status --porcelain`. Both are git's
+  answers — and `git update-index --assume-unchanged` (or `--skip-worktree`) instructs git
+  to hide a tracked file's filesystem edits from exactly those answers. The review's
+  fixture: phase 6 masks the gated tests, rewrites them on the filesystem to a vacuous
+  assertion, and commits only its lawful artifacts — every check passes, later phases run
+  their suites against the tampered filesystem, and the flight publishes DONE. The pushed
+  objects still carry the *original* tests (the mask hides the edit from the commit too),
+  so what breaks is not the published content but the certification: the completion proof
+  attests a judgment produced against a filesystem that differs from the pushed tree. The
+  fix refuses the bits themselves, fail-closed: `index_mask_ok` (any lowercase tag or `S`
+  in `git ls-files -v`) at takeoff and at every acceptance. Publication needs no third
+  call — it only follows the final phase's acceptance, and an operator-seeded mask meets
+  the takeoff check of the next invocation; a third, indistinguishable call site would be
+  an arm no scenario can kill. Pinned by a routed phase-6 fixture, a pre-seeded takeoff
+  scenario, and the mutants `mask-attempt-off` / `mask-takeoff-off`.
+- **The threat boundary is now declared, ending the pursuit (fork decided with the
+  operator, 2026-08-21).** R9-1 and R10-1 are consecutive blockers on the same family, and
+  the second exposed the pattern: the wall measures *through git, from inside the working
+  copy it shares with the actor*. Against a phase that strays out of role — the realistic
+  failure: a reviewer "fixing" code, a planner touching tests, sloppiness rather than
+  sabotage — the wall is now closed: every dispatched phase has an edge, and the one
+  reproduced measurement bypass is refused. Against an **actively adversarial actor with a
+  shell**, in-repo measurement cannot converge: the actor can rewrite `.git/config` (a
+  hostile `core.fsmonitor` runs attacker-chosen code under the driver's own git
+  invocations and can lie about what changed), install hooks, or manipulate `.git`
+  directly — each closable check spawns the next channel, at a full review-and-absorption
+  round apiece. That class is therefore a **declared residual, closed as a class**: the
+  wall's guarantee targets the out-of-role phase; the adversarial-actor class is
+  backstopped where it always was — the harness sandbox, the draft PR an operator
+  promotes, and the project's CI. Future review rounds judge the perimeter as declared
+  here: a new measurement-channel bypass inside the adversarial class lands in that
+  residual, not in the findings.
+
 ### What the behavior suite is a safety case for
 
 Mutation testing over a 780-line script does not converge: a survivor exists for every line no
@@ -527,8 +568,9 @@ the eighth round, completed in the ninth — the **hard wall** (an edge per disp
 reviewers write only the two flight artifacts, the TestPlan Designer only the testplan, the
 Handoff Planner only the plan and the testplan, the Test Writer only test paths and the
 testplan, the Implementer neither a test path nor the plan or design record; the wall config
-is fail-closed). Survivors outside those eight are recorded here as known-unprotected lines,
-not as open findings.
+is fail-closed, and git's index-masking bits — the one reproduced way to blind the
+measurement — are refused at takeoff and at every acceptance). Survivors outside those eight
+are recorded here as known-unprotected lines, not as open findings.
 
 One property named by the seventh review is deliberately **outside** this partition: artifact
 inertness across `/switch-profile`. It is a kit-level rule carried by the chapters and by
@@ -536,13 +578,13 @@ inertness across `/switch-profile`. It is a kit-level rule carried by the chapte
 reads a foreign-profile artifact, because a flight requires a fresh feature name. `verify-kit`
 does not check it either, and no mutant here can. It belongs to the kit's own review surface.
 
-Mutation evidence, all against the current suite — **345 assertions**, 0 failures unmutated
+Mutation evidence, all against the current suite — **351 assertions**, 0 failures unmutated
 — produced by `tests/driver/mutants.sh` (one exact sed program per row; the two `actor-…`
 rows mutate the test actor instead of the driver):
 
 | Mutant (`tests/driver/mutants.sh` id) | Property | Failures |
 |---|---|---:|
-| `harness-one-family` | entry/dispatch | 96 |
+| `harness-one-family` | entry/dispatch | 97 |
 | `stamp-not-written` | publication | 47 |
 | `actor-final-review-writes-code` | hard wall | 46 |
 | `entry9-log-shape` | entry | 34 |
@@ -570,6 +612,7 @@ rows mutate the test actor instead of the driver):
 | `lock-acquire` | terminal state/lock | 4 |
 | `commit-prefix-grammar` | audit/hygiene | 4 |
 | `wall-planner-edge` | hard wall | 4 |
+| `mask-attempt-off` | hard wall | 4 |
 | `log-fence-length` | publication | 3 |
 | `log-atx-max-six` | publication | 3 |
 | `log-comment-not-opaque` | publication | 3 |
@@ -596,6 +639,7 @@ rows mutate the test actor instead of the driver):
 | `proof-body-grep` | publication | 1 |
 | `push-by-name` | publication | 1 |
 | `wall-env-optional` | hard wall | 1 |
+| `mask-takeoff-off` | hard wall | 1 |
 | `report-verdict` | report honesty | 1 |
 | `cleanup-arm` | terminal state/lock | 0 — survivor |
 | `actor-ladder-scope` | (test harness) | 0 — survivor |
@@ -624,6 +668,14 @@ defect found by its own mutant.
 
 Known residuals and declared gaps:
 
+- **The adversarial-actor class (declared at the tenth review, closed as a class):** a phase
+  session with a shell inside the working copy can attack git's measurement channel itself —
+  repo-local config (`core.fsmonitor` executes attacker-chosen code under the driver's own
+  git invocations), hooks, direct `.git` manipulation. The reproduced index-bit bypass is
+  refused (R10-1); the rest of the class sits outside the wall's declared guarantee, which
+  targets the out-of-role phase, and is backstopped by the harness sandbox, the draft-PR
+  promotion, and the project's CI. A new bypass inside this class is this residual, not a
+  finding.
 - ~~A *direct* `-s 9` can still ride an earlier attempt's in-Log row~~ — closed by R8-M1: the
   proof walk refuses any code commit between `HEAD` and the acceptance stamp.
 - A cold `-s 9` after a plan rewrite still rides the previous implementation's stamp (the
