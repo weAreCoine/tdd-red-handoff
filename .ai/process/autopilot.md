@@ -29,7 +29,7 @@ cannot approve their own output.
 
 | # | Phase | Role | Capability tier (see roster) | Session | Output |
 |---|-------|------|------------------------------|---------|--------|
-| 1 | Design interview | **Designer** | strongest reasoning tier | interactive, with the operator | branch from the base branch, tracker issue → in progress, `{feature}.adr.md`, commit |
+| 1 | Design interview | **Designer** | strongest reasoning tier | interactive, with the operator | tracker issue → in progress (first act), branch from the base branch, `{feature}.adr.md`, commit |
 | 2 | Test inventory | **TestPlan Designer** | flagship production tier | headless, agentic | `{feature}.testplan.md` (`DRAFT`), commit |
 | 3 | Inventory gate | **TestPlan Reviewer** | strong review tier | headless | routed verdict; approval grants `READY` |
 | 4 | Test transcription | **Test Writer** | cost-efficient production tier | headless, agentic | RED tests, commit; testplan → `RED` |
@@ -278,12 +278,15 @@ fuzzy terms are sharpened against the project glossary, edge cases are probed wi
 scenarios, and decisions that are hard to reverse, surprising without context, and real
 trade-offs become project ADRs — distinct from this flight's design record.
 
-Understand the requirement fully; inspect existing code; fix the affected units and their
-exact signatures; map edge cases and failure modes; check blast radius on existing tests.
-Resolve every open decision **with the operator** — this is the only phase where a human
-answers questions; every later phase inherits only what the artifacts say. Produce
-`{feature}.adr.md`, open the tracker issue, cut the branch, commit, write `models.env`,
-launch the driver. Then go dormant.
+**Tracker first:** when the request names a tracker issue, move it to *in progress* before the
+interview begins — with tracker tools when this session has them, otherwise the operator moves
+it before you continue. Then understand the requirement fully; inspect existing code; fix the
+affected units and their exact signatures; map edge cases and failure modes; check blast
+radius on existing tests. Resolve every open decision **with the operator** — this is the only
+phase where a human answers questions; every later phase inherits only what the artifacts say.
+Produce `{feature}.adr.md`, create the tracker issue with the operator when none was named (it
+goes to *in progress* too), cut the branch, commit, write `models.env`, launch the driver.
+Then go dormant.
 
 ### Phase 2 — Test inventory (TestPlan Designer)
 

@@ -63,6 +63,7 @@ Every feature follows this exact sequence. No exceptions.
 
 ### Phase 1: Analyze
 
+- **Tracker first:** when the requirement names a tracker issue, move it to *in progress* before any analysis begins — with tracker tools when this session has them, otherwise ask the user to move it before you continue. No issue named → nothing to move.
 - Understand the requirement fully before writing anything.
 - Inspect existing code: routes/views, the API contract (`PROJECT_ARCHITECTURE.md § API Contract`), sibling units, existing orchestration constructs.
 - Identify all affected units: orchestration constructs, state/stores, API client functions, route/entry components, handlers.

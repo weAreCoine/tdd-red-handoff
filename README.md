@@ -90,6 +90,7 @@ Architect                                     Implementer
 (two-role chapter, via CLAUDE.md)             (AGENTS.md)
 ─────────────────────────────────             ───────────────────────
 1. Analyze the requirement
+   (a named tracker issue → in progress first)
 2. Write failing tests, verify RED
 3. Write the implementation plan
    {f}.md ──────────────────────────────────► 4. Read the plan
@@ -106,6 +107,7 @@ Designer                   Test-Writer                 Verifier                 
 (chapter, Phase 1)         (chapter, Phase 2)          (chapter, Phases 3+5)         (AGENTS.md, Phase 4)
 ──────────────────         ────────────────────        ───────────────────           ───────────────────
 1. Analyze requirement
+   (issue → in progress)
 2. Fix signatures, write
    test-case inventory
    {f}.testplan.md ──────► 3. Transcribe tests,
@@ -125,7 +127,7 @@ Designer                   Test-Writer                 Verifier                 
 
 ```
 Operator ──► /fly {feature} — Phase 1: design interview (Designer, interactive)
-             {f}.adr.md · branch from the base branch · issue → in progress · driver launched
+             issue → in progress · {f}.adr.md · branch from the base branch · driver launched
                                  │  unattended from here — headless sessions chained by the driver
   ┌──────────────────────────────▼────────────────────────────────────────────┐
   │ 2 TestPlan Designer ──► {f}.testplan.md (DRAFT)                           │
@@ -144,6 +146,8 @@ Operator ──► /fly {feature} — Phase 1: design interview (Designer, inter
 ```
 
 The intelligence stays in the verdicts, not the plumbing: reviewers emit routed verdicts (`{verdict, route, notes}`), and the **driver** — a deterministic script, `bin/autopilot-driver.sh` — dispatches, counts, and stops. Re-entry always passes the gate again: an amended artifact never skips its judge — the driver refuses to enter any phase, relaunches included, whose artifacts' state does not justify it (entering the final review demands the driver's own **acceptance stamp** for the implementation phase — an empty commit, written only after every check on that phase passed, whose `Autopilot-Green` trailer names the accepted commit as its own parent; the trailer key is reserved: a phase commit carrying it fails the attempt, and the stamp is read back with `git interpret-trailers`, so a lookalike line in prose or in the Log proves nothing. The stamp must be reachable from `HEAD` through commits that touched nothing but the two flight artifacts — later Log entries never consume the proof, one code commit past it does: implementation cannot be skipped by re-entry, nor ridden across code the driver never accepted. The Log reader stays bounded by design, models fenced blocks and HTML comments (opaque: pasted command output goes inside a fence), and *refuses* what it does not model — raw HTML, a container left open, a second Log heading, any section after the Log — with a documented repair for each). One family designs and judges (phases 1, 3, 5, 7, 9), the other produces (2, 4, 6, 8) — no artifact is judged by the family that produced it. The hard wall itself is **measured, not assumed**: after every attempt the driver checks the phase's write-set (the git diff of what it actually touched) against an edge per phase — reviewers write only the two flight artifacts, the TestPlan Designer only the testplan, the Handoff Planner only the plan and the testplan, the Test Writer only test paths and the testplan, the Implementer never a test path nor the plan or design record it is judged against — with the project's test paths recorded in the versioned `.ai/wall.env` (fail-closed: no wall, no flight; a violating attempt is reset and retried, its edits never survive, and a path git has to quote is refused rather than guessed; git's index-masking bits, which would blind the measurement itself, are refused outright at takeoff and at every acceptance). The wall's guarantee carries a declared boundary: it stops a phase that strays out of its role — an actively adversarial session with a shell is a declared residual class, backstopped by the harness sandbox, the draft-PR promotion, and your CI (ADR-0008). Before real work, every headless phase passes a **preflight**: read a driver-written nonce file and open the reply with its content — unforgeable proof its tools work, since the nonce is nowhere in the prompt (fail → 2 retries → the recorded substitution ladder → the operator). A stopped flight pushes nothing: state stays on disk, the dormant interview session presents the exact blocking point, and you amend, relaunch, or abort. Terminal states are three and each is honest: **DONE** (pushed, draft PR open), **PUSHED** (pushed but the PR could not be opened — the report hands you the compiled body and the remaining steps), **STOPPED** (nothing pushed). What gets published is the commit the final review actually judged: before the push the driver re-checks branch, clean tree, and that both `HEAD` and the branch ref still are that exact commit, then pushes it by object — anything else stops the flight. Headless sessions run guarded by default — codex in its workspace-write sandbox, claude under your Claude Code sandbox with auto-accepted edits; a permission bypass exists only as your recorded, per-project choice.
+
+Under every profile the design phase opens with the tracker: a feature that names a tracker issue moves it to *in progress* before any analysis begins — with tracker tools when the session has them, otherwise the user moves it before the work continues. No issue named, nothing to move.
 
 The artifacts in `.ai/plans/` are the **sole interfaces** between roles — if it's not in the artifact, the next role asks instead of guessing. Under the pipeline, run each phase in a **fresh session**: the Verifier judges the tests from the artifacts, not from the memory of having watched them being written.
 
