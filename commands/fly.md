@@ -100,6 +100,11 @@ and prompts contain repository content.
 
 ## Phase C — The interview (phase 1 of the chapter)
 
+**Tracker first.** When the operator's request names a tracker issue, move it to *in progress*
+before the interview begins — with tracker tools when this session has them, otherwise have the
+operator move it before you continue — and keep its reference for the design record and
+`flight.env`.
+
 **The method.** Invoke the **`grill-with-docs` skill** and drive the whole interview through
 it — it composes `grilling` (one question at a time, each with your recommended answer, the
 design tree walked branch by branch, a question the codebase can answer explored rather than
@@ -115,8 +120,8 @@ cases and blast radius mapped, **every** open decision resolved here — later p
 only what the artifacts say, and nobody attends them. Then, in order:
 
 1. Update `develop` and cut `feature/{feature}` from it.
-2. Tracker: move (or create, with the operator) the feature's issue to *in progress*; keep its
-   reference.
+2. Tracker: when no issue was named at the start, create one with the operator now and move it
+   to *in progress*; keep its reference.
 3. Write the design record `.ai/plans/{feature}.adr.md` — goal, scope and non-goals, affected
    layers and signatures, edge-case map, tracker reference, model bindings (substitutions,
    ladder, and any bypass policy included).
