@@ -100,6 +100,13 @@ run_vk "$T"
 chk 'free, symlink elsewhere: free-shape FAIL' status_line FAIL free-shape
 chk 'free, symlink elsewhere: the wrong target is named' out_has ".ai/PROJECT_ARCHITECTURE.md"
 
+# ------------------------------------- free, symlink chained through another link --
+make_target free-chain free
+ln -s CLAUDE.md "$T/hop.md"; park_agents "$T" hop.md
+run_vk "$T"
+chk 'free, chained symlink: free-shape FAIL (one hop only — what the switch writes)' status_line FAIL free-shape
+chk 'free, chained symlink: the intermediate link is named' out_has "symlink to 'hop.md'"
+
 # ---------------------------------------------------- free, dangling symlink --
 make_target free-dangling free; park_agents "$T" no-such-file.md
 run_vk "$T"

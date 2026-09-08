@@ -22,9 +22,10 @@ bin/verify-kit.sh                             # kit repo checkout: prefer the tr
   gone, contract names verbatim in the live Toolchain, one floor in two files, no model-name
   leaks); otherwise the templates → **kit** mode (markers must *survive*, detection strings
   intact, contract names pinned, model names confined to README + template roster).
-- Target mode always reports `free-shape`: under `free`, `AGENTS.md` must be a symlink resolving
-  to `CLAUDE.md` and `.ai/AGENTS.parked.md` a regular file; under any other profile, `AGENTS.md`
-  must be a regular file and no parked file may exist. Either way a FAIL is a half-done
+- Target mode always reports `free-shape`: under `free`, `AGENTS.md` must be a symlink pointing
+  directly at `CLAUDE.md` (one hop, as `/switch-profile` writes it) and `.ai/AGENTS.parked.md`
+  a regular file; under any other profile, `AGENTS.md` must be a regular file and no parked
+  file may exist. Either way a FAIL is a half-done
   `/switch-profile`, and the fix is finishing that switch by hand along the command's Phase 2 —
   never deleting the parked contract.
 - `-p <plugin-root>` (target mode) enables the **install-integrity** checks: the six installed

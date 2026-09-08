@@ -61,7 +61,8 @@ template on that path; the user recovers the file from git and reruns.
 
 The commands are executed by a model; what pins their outcome is `verify-kit`, not their
 text (ADR-0006). A new target-mode check, `free-shape`, is reported whenever the manifest
-exists: under `free`, `AGENTS.md` must be a symlink resolving to `CLAUDE.md` and
+exists: under `free`, `AGENTS.md` must be a symlink pointing directly at `CLAUDE.md` (one
+hop, exactly what the switch writes — a chain through another link is refused) and
 `.ai/AGENTS.parked.md` a regular file; under any other profile `AGENTS.md` must be a regular
 file and no parked file may exist. A half-done switch in either direction is a FAIL that names
 the leftover. The check has its own behavior suite, `tests/verify-kit/run.sh`, on disposable

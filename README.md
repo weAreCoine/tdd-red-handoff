@@ -23,18 +23,18 @@ The kit's fix is structural, and it holds under every profile: the design side w
 
 What the profiles change is how the design side is staffed — and who supervises the handoffs:
 
-| | **two-role** | **pipeline** | **autopilot** |
-|---|---|---|---|
-| Design side | **Architect** — one role does design, tests, plan, review | **Designer** (spec) → **Test-Writer** (transcription) → **Verifier** (gate, plan, review) | **Designer** (interview) + four reviewer gates; the test inventory, tests and plan are produced across a model-family line |
-| Implementer | external code-gen agent (`AGENTS.md`) | same | same contract, flown headless (mid production tier) |
-| Handoff artifacts | `{feature}.md` (implementation plan) | `{feature}.testplan.md` (test-case inventory) + `{feature}.md` | `{feature}.adr.md` (design record) + the pipeline pair |
-| Sessions per feature | fewest | five fresh sessions | one interactive + eight headless, chained by the driver |
-| Supervision | the operator, between phases | the operator, between phases | the driver's gates and caps; the operator at the two ends only |
-| Worth it when | small or low-stakes changes | code that holds real data | features you can fully specify up front and want flown while you do something else |
+| | **two-role** | **pipeline** | **autopilot** | **free** |
+|---|---|---|---|---|
+| Design side | **Architect** — one role does design, tests, plan, review | **Designer** (spec) → **Test-Writer** (transcription) → **Verifier** (gate, plan, review) | **Designer** (interview) + four reviewer gates; the test inventory, tests and plan are produced across a model-family line | none — no role is bound |
+| Implementer | external code-gen agent (`AGENTS.md`) | same | same contract, flown headless (mid production tier) | none — `AGENTS.md` is a symlink to `CLAUDE.md`, the contract parked |
+| Handoff artifacts | `{feature}.md` (implementation plan) | `{feature}.testplan.md` (test-case inventory) + `{feature}.md` | `{feature}.adr.md` (design record) + the pipeline pair | none written; existing ones inert |
+| Sessions per feature | fewest | five fresh sessions | one interactive + eight headless, chained by the driver | whatever the method under test uses |
+| Supervision | the operator, between phases | the operator, between phases | the driver's gates and caps; the operator at the two ends only | none from the kit |
+| Worth it when | small or low-stakes changes | code that holds real data | features you can fully specify up front and want flown while you do something else | trying another way of working for a while |
 
 The selection criterion is the **stakes of the work** versus the friction the profile imposes: five fresh sessions and two artifacts per feature earn their keep on code that matters, and cost more than they return on a quick fix; an unattended flight earns its keep when the interview can front-load every decision — nobody attends the later phases, so an ambiguity that surfaces mid-flight is a bounce or a stop, never a question. That judgement changes task by task — so switching is a routine, bidirectional operation (`/switch-profile`), not a migration.
 
-The fourth profile, **free**, is outside that table on purpose: it staffs no design side and supervises nothing. It exists for the stretch of time in which you want to try a different working method — with Claude Code, with another agent CLI — on the same project, without uninstalling the kit: the project facts, the shell below line 1 of `CLAUDE.md` and the other three chapters (as reference material, applied only when you ask) stay in place, `.ai/plans/` goes inert and is never written, and under it `AGENTS.md` is a symlink to `CLAUDE.md`, so every tool reads one instruction file. The implementer contract `AGENTS.md` normally holds is parked, versioned, at `.ai/AGENTS.parked.md` and put back when you switch out (ADR-0009).
+The fourth column is deliberately empty of method: **free** staffs no design side and supervises nothing. It exists for the stretch of time in which you want to try a different working method — with Claude Code, with another agent CLI — on the same project, without uninstalling the kit: the project facts, the shell below line 1 of `CLAUDE.md` and the other three chapters (as reference material, applied only when you ask) stay in place, `.ai/plans/` goes inert and is never written, and under it `AGENTS.md` is a symlink to `CLAUDE.md`, so every tool reads one instruction file. The implementer contract `AGENTS.md` normally holds is parked, versioned, at `.ai/AGENTS.parked.md` and put back when you switch out (ADR-0009).
 
 **Why three design roles in the pipeline?** "Writing the tests" packs two very different jobs together: *deciding what to test* — edge cases, failure modes, exact expected values — which is specification work where a weaker model silently makes worse decisions; and *transcribing those cases into code*, which is mechanical, bulky, and exactly what a cheaper model does well from a precise input. Splitting them means the scarce top-tier model is spent **only on the decisions that propagate**, while the bulk of the output tokens moves down-tier. The Verifier's gate is what keeps the cheap transcription honest — it checks the tests against the inventory the Designer wrote, so it's verification against a reference, not open judgment.
 

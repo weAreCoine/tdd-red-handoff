@@ -23,12 +23,13 @@
 #                    same sin the Kit forbids every role.
 #
 # Target mode also reports free-shape whenever the manifest exists: under the free
-# profile AGENTS.md must be a symlink resolving to CLAUDE.md and the implementer
+# profile AGENTS.md must be a symlink pointing directly at CLAUDE.md (one hop — what
+# /switch-profile writes; a chain through another link is refused) and the implementer
 # contract must sit parked at .ai/AGENTS.parked.md; under every other profile
 # neither may be there. A half-done /switch-profile, in either direction, is a FAIL.
 #
 # -p <plugin-root> (target mode only; kit mode ignores it): also check install
-# integrity against the plugin payload — the six installed kit files byte-identical
+# integrity against the plugin payload — the installed kit files (KIT_FILES) byte-identical
 # to the plugin's copies, kit.json's kitVersion equal to plugin.json's version
 # (ADR-0005). Without -p those checks are NOT CHECKED: the script cannot locate
 # the plugin on its own; the plugin commands pass "${CLAUDE_PLUGIN_ROOT}".
@@ -200,7 +201,8 @@ if [ "$MODE" = kit ]; then
   # (hyphen — pipeline's), and never bare 'architect' either. The free chapter binds
   # no role, so it uses none of those words: neither hyphenated nor spaced test-writer,
   # nor bare 'architect' — the vocabulary greps must keep telling the chapters apart.
-  # forbid_in_chapter <chapter> <grep flags> <pattern> <label>: every hit becomes a problem line.
+  # forbid_in_chapter <chapter> <grep flags> <pattern> <label>: every hit becomes a problem
+  # line — appends to the caller's $problems, like need() above.
   forbid_in_chapter() {
     hits=$(grep "$2" "$3" ".ai/process/$1" || true)
     [ -n "$hits" ] && problems="$problems$NL  $4:$NL$(printf '%s' "$hits" | sed 's/^/    /')"
@@ -410,12 +412,13 @@ else # target
     if [ "$profile" = free ]; then
       if [ -L "$LIVE_AGENTS" ]; then
         tgt=$(readlink "$LIVE_AGENTS")
-        # Resolve the target the way the OS will: relative to the symlink's directory
-        # (the project root — we cd'd into it). A dangling target resolves to nothing.
+        # One hop only: the target, read relative to the symlink's directory (the project
+        # root — we cd'd into it), must be CLAUDE.md itself. A dangling target resolves to
+        # nothing; a chain through another link is refused — /switch-profile never writes one.
         tdir=$(cd "$(dirname -- "$tgt")" 2>/dev/null && pwd -P || true)
         resolved=${tdir:+$tdir/$(basename -- "$tgt")}
         [ -n "$resolved" ] && [ -f "$resolved" ] && [ "$resolved" = "$(pwd -P)/$LIVE_CLAUDE" ] \
-          || problems="$problems$NL  AGENTS.md is a symlink to '$tgt', expected CLAUDE.md (the file that carries the line-1 import)"
+          || problems="$problems$NL  AGENTS.md is a symlink to '$tgt', expected a direct link to CLAUDE.md (the file that carries the line-1 import)"
       else
         problems="$problems$NL  AGENTS.md is not a symlink — under free it must point at CLAUDE.md (a switch into free left half-done)"
       fi
@@ -486,7 +489,7 @@ else # target
         fail kit-version "kitVersion '${kitver:-missing}' != plugin version '${plugver:-missing}' — run /update-kit to realign and restamp"
       fi
 
-      # install-files — the six installed kit files, byte-identical to the plugin's copies.
+      # install-files — the installed kit files (KIT_FILES), byte-identical to the plugin's copies.
       problems=''
       OLDIFS=$IFS; IFS=$NL
       for f in $KIT_FILES; do
