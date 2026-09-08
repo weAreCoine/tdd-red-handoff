@@ -1,5 +1,5 @@
 ---
-description: Print the active kit profile (two-role | pipeline | autopilot) — read-only; reads the profile triad and reports drift instead of guessing.
+description: Print the active kit profile (two-role | pipeline | autopilot | free) — read-only; reads the profile triad and reports drift instead of guessing.
 ---
 
 # /show-profile
@@ -31,14 +31,28 @@ ls .ai/process/                 # the named chapter must exist
 
 While in `kit.json`, also read `kitVersion` — the install stamp, reported alongside.
 
+When the manifest says `free`, also look at the implementer contract's shape — read, not
+repaired:
+
+```bash
+ls -l AGENTS.md .ai/AGENTS.parked.md 2>&1   # expected: AGENTS.md -> CLAUDE.md, parked file present
+```
+
 ## Phase 2 — Report
 
 **Triad agrees** (the normal case):
 
 - **Active profile** — `two-role` (Architect + Implementer), `pipeline` (Designer /
-  Test-Writer / Verifier + Implementer) or `autopilot` (nine phases flown unattended by the
-  driver, `/fly` opens a flight). Models resolve per role in
-  `.ai/PROJECT_ARCHITECTURE.md § Model Roster`.
+  Test-Writer / Verifier + Implementer), `autopilot` (nine phases flown unattended by the
+  driver, `/fly` opens a flight) or `free` (no role, no phase, no wall, no TDD order, no
+  roster model check — the shell below line 1 and the facts contract still bind). Models
+  resolve per role in `.ai/PROJECT_ARCHITECTURE.md § Model Roster`; under `free` there is no
+  role to resolve.
+- **Under `free` only** — where the implementer contract is: `AGENTS.md` is a symlink to
+  `CLAUDE.md` (every tool reads one file) and the contract is parked at
+  `.ai/AGENTS.parked.md`. If the shape differs from that — `AGENTS.md` a regular file, the
+  parked file missing, the symlink pointing elsewhere — say so verbatim: a half-done switch,
+  which `/verify-kit`'s `free-shape` check reports as a FAIL. Repair nothing here.
 - **Kit version** — the `kitVersion` stamp from `.ai/kit.json`.
 - Pointers: `/switch-profile` changes the profile; `/verify-kit` runs the full mechanical pass
   (this command checks the triad and nothing else).

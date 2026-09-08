@@ -15,7 +15,7 @@ _Avoid_: framework, boilerplate, scaffold
 A self-consistent set of process contracts — roles, templates and commands — that a target
 project runs on. Exactly one profile is active at any time, but the active profile is chosen
 per task, not once per project: a project switches between profiles as the work in front of
-it changes. The three values are `two-role`, `pipeline` and `autopilot`.
+it changes. The four values are `two-role`, `pipeline`, `autopilot` and `free`.
 _Avoid_: variant, preset, mode, flavour
 
 **two-role**:
@@ -32,6 +32,14 @@ The profile that flies a feature unattended between two human touchpoints: a des
 interview at the start, a report and a draft PR at the end. Nine phases — a design side, a
 production side and four cross-family gates — chained by the driver. Three artifacts per
 feature: the design record, the test-case inventory and the implementation plan.
+
+**free**:
+The profile that binds no role, no phase, no wall and no TDD order: everything the kit knows
+about the project and about its own method stays readable, nothing of the method is imposed.
+It exists to try other ways of working. Under it the design side and the implementer read one
+and the same file, so the state is identical for every tool. Existing per-feature artifacts
+are inert and the profile never writes new ones.
+_Avoid_: disabled, off, suspended, no-profile
 
 **Process chapter**:
 The roles-and-phases text of one profile, shipped verbatim to `.ai/process/{profile}.md` in a
@@ -99,3 +107,28 @@ never rewritten, moved, deleted, or retrofitted. Generalizes the rule that testp
 inert under two-role. No design-record backfill, no retroactive gate stamps, no status
 promotion.
 _Avoid_: read-only mode, freezing
+
+**Blind challenge**:
+A staged review in which the reviewer first records ambiguities, risks and indispensable
+test cases from the requirement and target repository alone, then reads the producer's
+testplan and rationale and issues a comparative verdict.
+_Avoid_: independent design, ordinary testplan review
+
+**Decision provenance chain**:
+The linked path from an operational issue back through the resolved decisions and ADRs that
+created it. The issue fixes the current scope, the upstream decisions constrain it, and the
+target repository supplies the current technical facts; a contradiction stops the pipeline
+for the operator.
+_Avoid_: issue context, attachment chain
+
+**Semantic gate**:
+The pre-transcription approval that compares a candidate testplan with its decision provenance
+chain and the target repository. Its reviewer begins with a blind challenge and reads the
+producer's rationale only after recording an independent position.
+_Avoid_: test gate, transcription review
+
+**Transcription gate**:
+The post-transcription check that the RED tests correspond exactly to the approved testplan,
+use only the permitted boundaries, and fail for the intended missing behavior. It does not
+reopen decisions already settled by the semantic gate.
+_Avoid_: semantic review, design gate

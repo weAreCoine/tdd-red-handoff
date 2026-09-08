@@ -4,15 +4,16 @@ description: Realign this project's installed kit files (.ai/process chapters + 
 
 # /update-kit
 
-Bring **this** project's installed kit files up to the plugin's version. The kit installs five
+Bring **this** project's installed kit files up to the plugin's version. The kit installs six
 files into a target — `.ai/process/two-role.md`, `.ai/process/pipeline.md`,
-`.ai/process/autopilot.md`, `.ai/templates/plan_template.md`,
+`.ai/process/autopilot.md`, `.ai/process/free.md`, `.ai/templates/plan_template.md`,
 `.ai/templates/test_plan_template.md` — and this command
 replaces them with the plugin's current copies, then stamps `.ai/kit.json` `kitVersion`
 (ADR-0005: `plugin.json` `version` is what the kit *is*, `kitVersion` is what was *installed*;
 this command is the procedure that compares them). Everything the project authored —
 `CLAUDE.md`, `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, `.ai/plans/*` — is out of scope and
-never touched.
+never touched; so are the active profile and, under `free`, the parked implementer contract
+`.ai/AGENTS.parked.md` and the `AGENTS.md` symlink.
 
 > **No model check.** This command makes no spec decision: it compares versions, copies files,
 > and runs checks. Any model tier can run it.
@@ -29,23 +30,23 @@ never touched.
      version.
    - Plugin version **lower** than the stamp → the plugin cache is stale: STOP and tell the
      user to update the plugin first. Never realign a project backwards silently.
-3. **Clean seam.** The five kit files and `.ai/kit.json` carry no uncommitted changes in git —
+3. **Clean seam.** The six kit files and `.ai/kit.json` carry no uncommitted changes in git —
    the update should land as one reviewable diff. Dirty → show what is dirty and ask before
    proceeding.
 
 ## Phase 1 — Diff (read-only)
 
-`diff` each of the five files against its `${CLAUDE_PLUGIN_ROOT}` counterpart and report per
+`diff` each of the six files against its `${CLAUDE_PLUGIN_ROOT}` counterpart and report per
 file: **identical**, **changed** (one line on what changed), or **new** (a chapter the
-installed kit version predates — e.g. `autopilot.md` on a pre-1.4 install — installed, not
-overwritten). A local delta surfaces here too:
+installed kit version predates — `autopilot.md` on a pre-1.4 install, `free.md` on a pre-1.6
+install — installed, not overwritten). A local delta surfaces here too:
 chapters and templates ship verbatim, so a hand-edit in the target is drift the update will
 overwrite — show it *before* replacing it, never after. It stays recoverable from git, but the
 user must see it exists.
 
 ## Phase 2 — Apply
 
-1. Copy the five files from `${CLAUDE_PLUGIN_ROOT}/.ai/…` over the project's copies.
+1. Copy the six files from `${CLAUDE_PLUGIN_ROOT}/.ai/…` over the project's copies.
 2. `.ai/kit.json` → `"kitVersion": "<plugin version>"`. The `profile` field is untouched —
    changing profile is `/switch-profile`'s job, and an update never switches profile.
 3. **Pre-plugin installs only, once:** if `.claude/commands/` still carries copies of the kit's
@@ -63,7 +64,7 @@ grep '"kitVersion"' .ai/kit.json   # must print the plugin's version
 ```
 
 The script's `install-files` and `kit-version` checks verify exactly what this update just did —
-the five files byte-identical to the plugin's copies, the stamp equal to the plugin's version —
+the six files byte-identical to the plugin's copies, the stamp equal to the plugin's version —
 so a FAIL on either means the update itself went wrong. Do not reconstruct the comparisons by
 hand: the script is their single source of truth (ADR-0006).
 
