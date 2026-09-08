@@ -22,9 +22,14 @@ bin/verify-kit.sh                             # kit repo checkout: prefer the tr
   gone, contract names verbatim in the live Toolchain, one floor in two files, no model-name
   leaks); otherwise the templates → **kit** mode (markers must *survive*, detection strings
   intact, contract names pinned, model names confined to README + template roster).
-- `-p <plugin-root>` (target mode) enables the **install-integrity** checks: the five installed
+- Target mode always reports `free-shape`: under `free`, `AGENTS.md` must be a symlink resolving
+  to `CLAUDE.md` and `.ai/AGENTS.parked.md` a regular file; under any other profile, `AGENTS.md`
+  must be a regular file and no parked file may exist. Either way a FAIL is a half-done
+  `/switch-profile`, and the fix is finishing that switch by hand along the command's Phase 2 —
+  never deleting the parked contract.
+- `-p <plugin-root>` (target mode) enables the **install-integrity** checks: the six installed
   kit files (`.ai/process/two-role.md`, `.ai/process/pipeline.md`, `.ai/process/autopilot.md`,
-  `.ai/templates/plan_template.md`, `.ai/templates/test_plan_template.md`) byte-identical to the
+  `.ai/process/free.md`, `.ai/templates/plan_template.md`, `.ai/templates/test_plan_template.md`) byte-identical to the
   plugin's copies (`install-files`), and `.ai/kit.json` `kitVersion` equal to the plugin's
   `version` (`kit-version`, ADR-0005). Without `-p` — the script run by hand or in CI, where
   `${CLAUDE_PLUGIN_ROOT}` does not exist — those checks are listed under NOT CHECKED, never
@@ -54,7 +59,7 @@ The install-integrity FAILs come in two kinds, told apart by the version stamp �
 check's own message before proposing a fix:
 
 - **Versions differ** (`kit-version` FAIL, possibly `install-files` too): the plugin moved on
-  since the install. Benign drift; the fix is `/update-kit`, which realigns the five files and
+  since the install. Benign drift; the fix is `/update-kit`, which realigns the six files and
   restamps `kitVersion`.
 - **Same version, bytes differ** (`install-files` FAIL alone): a shipped file was edited in the
   target. This is the serious case — chapters and per-feature templates ship verbatim.
