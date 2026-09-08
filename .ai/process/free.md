@@ -15,8 +15,8 @@ Do not go looking for a role to play — there is none. The session works the wa
 asks it to, in this conversation, and that is the whole contract.
 
 The profile exists so that an operator can try other ways of working — with Claude Code, with
-Codex, with anything else — for a while, without uninstalling the kit and without editing any
-file the kit ships. It is entered and left only through `/switch-profile`, like every other
+another agent CLI, with anything else — for a while, without uninstalling the kit and without
+editing any file the kit ships. It is entered and left only through `/switch-profile`, like every other
 profile change, and it is a per-task deviation from a method the project already has: a fresh
 project never starts on it.
 
@@ -29,7 +29,7 @@ project never starts on it.
   and exact versions, the toolchain commands, the layer map, the API contract, the secrets
   boundary. Whatever method is being tried, it runs on the real project.
 - **One instruction file for every tool.** Under this profile `AGENTS.md` is a symlink to
-  `CLAUDE.md`, so Claude Code and Codex read one and the same text. The contract `AGENTS.md`
+  `CLAUDE.md`, so every tool that reads either file reads the same text. The contract `AGENTS.md`
   normally holds is parked, versioned, at `.ai/AGENTS.parked.md`; `/switch-profile` puts it back
   on the way out. Do not edit the parked file and do not replace the symlink with a file.
 
