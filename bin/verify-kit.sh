@@ -22,8 +22,13 @@
 #                    that silently skipped what it cannot check would commit the
 #                    same sin the Kit forbids every role.
 #
+# Target mode also reports free-shape whenever the manifest exists: under the free
+# profile AGENTS.md must be a symlink resolving to CLAUDE.md and the implementer
+# contract must sit parked at .ai/AGENTS.parked.md; under every other profile
+# neither may be there. A half-done /switch-profile, in either direction, is a FAIL.
+#
 # -p <plugin-root> (target mode only; kit mode ignores it): also check install
-# integrity against the plugin payload — the five installed kit files byte-identical
+# integrity against the plugin payload — the six installed kit files byte-identical
 # to the plugin's copies, kit.json's kitVersion equal to plugin.json's version
 # (ADR-0005). Without -p those checks are NOT CHECKED: the script cannot locate
 # the plugin on its own; the plugin commands pass "${CLAUDE_PLUGIN_ROOT}".
@@ -85,10 +90,11 @@ format
 format:check
 coverage'
 
-# The five files the plugin installs verbatim into a target — /update-kit's exact scope.
+# The six files the plugin installs verbatim into a target — /update-kit's exact scope.
 KIT_FILES='.ai/process/two-role.md
 .ai/process/pipeline.md
 .ai/process/autopilot.md
+.ai/process/free.md
 .ai/templates/plan_template.md
 .ai/templates/test_plan_template.md'
 
@@ -190,11 +196,13 @@ if [ "$MODE" = kit ]; then
   # chapter also keeps its detection string and never uses the two-role role word
   # ('Architect' is legitimate only in two-role.md). The autopilot chapter keeps its
   # own role vocabulary: 'Test Writer' (space — its role), never 'Test-Writer'
-  # (hyphen — pipeline's), and never bare 'architect' either.
+  # (hyphen — pipeline's), and never bare 'architect' either. The free chapter binds
+  # no role, so it uses none of those words: neither hyphenated nor spaced test-writer,
+  # nor bare 'architect' — the vocabulary greps must keep telling the chapters apart.
   if [ -d .ai/process ] && ls .ai/process/*.md >/dev/null 2>&1; then
     problems=''
-    for chf in two-role.md pipeline.md autopilot.md; do
-      [ -f ".ai/process/$chf" ] || problems="$problems$NL  .ai/process/$chf missing — the kit ships three chapters"
+    for chf in two-role.md pipeline.md autopilot.md free.md; do
+      [ -f ".ai/process/$chf" ] || problems="$problems$NL  .ai/process/$chf missing — the kit ships four chapters"
     done
     ch=$(grep -nE 'FILL:|\[\[DECISION' .ai/process/*.md || true)
     [ -n "$ch" ] && problems="$problems$NL  fill markers in chapters:$NL$(printf '%s' "$ch" | sed 's/^/    /')"
@@ -212,6 +220,12 @@ if [ "$MODE" = kit ]; then
       arch=$(grep -nwi 'architect' .ai/process/autopilot.md || true)
       [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the autopilot chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
     fi
+    if [ -f .ai/process/free.md ]; then
+      tw=$(grep -nE 'Test-Writer|Test Writer' .ai/process/free.md || true)
+      [ -n "$tw" ] && problems="$problems$NL  a test-writer role name in the free chapter (it binds no role):$NL$(printf '%s' "$tw" | sed 's/^/    /')"
+      arch=$(grep -nwi 'architect' .ai/process/free.md || true)
+      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the free chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+    fi
     if [ -z "$problems" ]; then
       pass chapters "process chapters carry no markers (they ship verbatim)"
     else
@@ -221,7 +235,7 @@ if [ "$MODE" = kit ]; then
   else
     # a missing directory is erosion, not a reason to skip: silence here once
     # let a copy with no .ai/process at all report an all-green kit run
-    fail chapters ".ai/process missing or empty — the kit ships three chapters"
+    fail chapters ".ai/process missing or empty — the kit ships four chapters"
   fi
 
   # contract-names — pinned in the template's Toolchain first cells.
@@ -385,6 +399,46 @@ else # target
       printf '%s\n' "$problems" | grep -v '^$' | detail
     fi
 
+    # free-shape — where the implementer contract is, under every profile. Under free,
+    # AGENTS.md is a symlink to CLAUDE.md (every tool reads one file) and the contract is
+    # parked, versioned, at .ai/AGENTS.parked.md; under the other three profiles neither
+    # may exist. Both halves fail closed: a leftover in either direction is a switch left
+    # half-done, and the fix is finishing it — never regenerating AGENTS.md from a template.
+    problems=''
+    if [ "$profile" = free ]; then
+      if [ -L "$LIVE_AGENTS" ]; then
+        tgt=$(readlink "$LIVE_AGENTS")
+        # Resolve the target the way the OS will: relative to the symlink's directory
+        # (the project root — we cd'd into it). A dangling target resolves to nothing.
+        tdir=$(cd "$(dirname -- "$tgt")" 2>/dev/null && pwd -P || true)
+        resolved=${tdir:+$tdir/$(basename -- "$tgt")}
+        [ -n "$resolved" ] && [ -f "$resolved" ] && [ "$resolved" = "$(pwd -P)/$LIVE_CLAUDE" ] \
+          || problems="$problems$NL  AGENTS.md is a symlink to '$tgt', expected CLAUDE.md (the file that carries the line-1 import)"
+      else
+        problems="$problems$NL  AGENTS.md is not a symlink — under free it must point at CLAUDE.md (a switch into free left half-done)"
+      fi
+      if [ -L .ai/AGENTS.parked.md ] || [ ! -f .ai/AGENTS.parked.md ]; then
+        problems="$problems$NL  .ai/AGENTS.parked.md missing — the parked implementer contract; recover it from git, never regenerate it from the template"
+      fi
+    else
+      if [ -L "$LIVE_AGENTS" ]; then
+        problems="$problems$NL  AGENTS.md is a symlink (-> $(readlink "$LIVE_AGENTS")) under profile '$profile' — a switch out of free left half-done"
+      fi
+      if [ -e .ai/AGENTS.parked.md ] || [ -L .ai/AGENTS.parked.md ]; then
+        problems="$problems$NL  .ai/AGENTS.parked.md left behind under profile '$profile' — the implementer contract belongs back at AGENTS.md"
+      fi
+    fi
+    if [ -z "$problems" ]; then
+      if [ "$profile" = free ]; then
+        pass free-shape "AGENTS.md -> CLAUDE.md, implementer contract parked at .ai/AGENTS.parked.md"
+      else
+        pass free-shape "AGENTS.md is a regular file, no parked contract (profile '$profile')"
+      fi
+    else
+      fail free-shape "the implementer contract is not where profile '$profile' expects it:"
+      printf '%s\n' "$problems" | grep -v '^$' | detail
+    fi
+
     # phase-numbers — profile-agnostic files must not hardcode phase numbers. The CLAUDE.md
     # file on disk is the shell (the chapter with its numbers arrives via the import).
     ph=$(grep -nE 'Phase(s)? [0-9]' $LIVE_CLAUDE $LIVE_AGENTS $LIVE_PA .ai/templates/plan_template.md .ai/templates/test_plan_template.md 2>/dev/null || true)
@@ -428,7 +482,7 @@ else # target
         fail kit-version "kitVersion '${kitver:-missing}' != plugin version '${plugver:-missing}' — run /update-kit to realign and restamp"
       fi
 
-      # install-files — the four installed kit files, byte-identical to the plugin's copies.
+      # install-files — the six installed kit files, byte-identical to the plugin's copies.
       problems=''
       OLDIFS=$IFS; IFS=$NL
       for f in $KIT_FILES; do
@@ -448,14 +502,14 @@ else # target
       done
       IFS=$OLDIFS
       if [ -z "$problems" ]; then
-        pass install-files "all 5 installed kit files byte-identical to the plugin's copies"
+        pass install-files "all 6 installed kit files byte-identical to the plugin's copies"
       else
         fail install-files "installed kit files diverge from the plugin payload:"
         printf '%s\n' "$problems" | grep -v '^$' | detail
       fi
       NOTE_PLUGIN=''
     else
-      NOTE_PLUGIN='  - Install integrity (5 kit files byte-identical to the plugin, kitVersion vs
+      NOTE_PLUGIN='  - Install integrity (6 kit files byte-identical to the plugin, kitVersion vs
     plugin version): no plugin root given — rerun with -p "$CLAUDE_PLUGIN_ROOT".'
     fi
     NOTE_PROFILE=''
