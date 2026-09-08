@@ -97,6 +97,7 @@ KIT_FILES='.ai/process/two-role.md
 .ai/process/free.md
 .ai/templates/plan_template.md
 .ai/templates/test_plan_template.md'
+KIT_FILE_COUNT=$(printf '%s\n' "$KIT_FILES" | grep -c .)   # derived, never restated by hand
 
 NL='
 '
@@ -199,6 +200,12 @@ if [ "$MODE" = kit ]; then
   # (hyphen — pipeline's), and never bare 'architect' either. The free chapter binds
   # no role, so it uses none of those words: neither hyphenated nor spaced test-writer,
   # nor bare 'architect' — the vocabulary greps must keep telling the chapters apart.
+  # forbid_in_chapter <chapter> <grep flags> <pattern> <label>: every hit becomes a problem line.
+  forbid_in_chapter() {
+    hits=$(grep "$2" "$3" ".ai/process/$1" || true)
+    [ -n "$hits" ] && problems="$problems$NL  $4:$NL$(printf '%s' "$hits" | sed 's/^/    /')"
+    return 0
+  }
   if [ -d .ai/process ] && ls .ai/process/*.md >/dev/null 2>&1; then
     problems=''
     for chf in two-role.md pipeline.md autopilot.md free.md; do
@@ -209,22 +216,17 @@ if [ "$MODE" = kit ]; then
     if [ -f .ai/process/pipeline.md ]; then
       grep -q 'Test-Writer' .ai/process/pipeline.md \
         || problems="$problems$NL  .ai/process/pipeline.md: 'Test-Writer' not found"
-      arch=$(grep -nwi 'architect' .ai/process/pipeline.md || true)
-      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the pipeline chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+      forbid_in_chapter pipeline.md -nwi 'architect' "bare 'architect' in the pipeline chapter"
     fi
     if [ -f .ai/process/autopilot.md ]; then
       grep -q 'Test Writer' .ai/process/autopilot.md \
         || problems="$problems$NL  .ai/process/autopilot.md: 'Test Writer' not found"
-      tw=$(grep -n 'Test-Writer' .ai/process/autopilot.md || true)
-      [ -n "$tw" ] && problems="$problems$NL  pipeline's 'Test-Writer' in the autopilot chapter (its role is 'Test Writer'):$NL$(printf '%s' "$tw" | sed 's/^/    /')"
-      arch=$(grep -nwi 'architect' .ai/process/autopilot.md || true)
-      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the autopilot chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+      forbid_in_chapter autopilot.md -n 'Test-Writer' "pipeline's 'Test-Writer' in the autopilot chapter (its role is 'Test Writer')"
+      forbid_in_chapter autopilot.md -nwi 'architect' "bare 'architect' in the autopilot chapter"
     fi
     if [ -f .ai/process/free.md ]; then
-      tw=$(grep -nE 'Test-Writer|Test Writer' .ai/process/free.md || true)
-      [ -n "$tw" ] && problems="$problems$NL  a test-writer role name in the free chapter (it binds no role):$NL$(printf '%s' "$tw" | sed 's/^/    /')"
-      arch=$(grep -nwi 'architect' .ai/process/free.md || true)
-      [ -n "$arch" ] && problems="$problems$NL  bare 'architect' in the free chapter:$NL$(printf '%s' "$arch" | sed 's/^/    /')"
+      forbid_in_chapter free.md -nE 'Test-Writer|Test Writer' "a test-writer role name in the free chapter (it binds no role)"
+      forbid_in_chapter free.md -nwi 'architect' "bare 'architect' in the free chapter"
     fi
     if [ -z "$problems" ]; then
       pass chapters "process chapters carry no markers (they ship verbatim)"
@@ -417,7 +419,9 @@ else # target
       else
         problems="$problems$NL  AGENTS.md is not a symlink — under free it must point at CLAUDE.md (a switch into free left half-done)"
       fi
-      if [ -L .ai/AGENTS.parked.md ] || [ ! -f .ai/AGENTS.parked.md ]; then
+      if [ -L .ai/AGENTS.parked.md ]; then
+        problems="$problems$NL  .ai/AGENTS.parked.md is a symlink — the parked implementer contract must be a regular file (the tracked move of the original AGENTS.md)"
+      elif [ ! -f .ai/AGENTS.parked.md ]; then
         problems="$problems$NL  .ai/AGENTS.parked.md missing — the parked implementer contract; recover it from git, never regenerate it from the template"
       fi
     else
@@ -502,15 +506,15 @@ else # target
       done
       IFS=$OLDIFS
       if [ -z "$problems" ]; then
-        pass install-files "all 6 installed kit files byte-identical to the plugin's copies"
+        pass install-files "all $KIT_FILE_COUNT installed kit files byte-identical to the plugin's copies"
       else
         fail install-files "installed kit files diverge from the plugin payload:"
         printf '%s\n' "$problems" | grep -v '^$' | detail
       fi
       NOTE_PLUGIN=''
     else
-      NOTE_PLUGIN='  - Install integrity (6 kit files byte-identical to the plugin, kitVersion vs
-    plugin version): no plugin root given — rerun with -p "$CLAUDE_PLUGIN_ROOT".'
+      NOTE_PLUGIN="  - Install integrity ($KIT_FILE_COUNT kit files byte-identical to the plugin, kitVersion vs
+    plugin version): no plugin root given — rerun with -p \"\$CLAUDE_PLUGIN_ROOT\"."
     fi
     NOTE_PROFILE=''
   else
