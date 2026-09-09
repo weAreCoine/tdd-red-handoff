@@ -2,13 +2,14 @@
 
 A small, opinionated convention for running **test-driven agent workflows** on a software project, with a hard wall between design and implementation: whoever writes the tests never writes the application code, and the implementer can never touch the tests — so the specification cannot bend to match whatever got implemented.
 
-One kit, three **profiles**, chosen **per task, not once per project**:
+One kit, four **profiles**, chosen **per task, not once per project** — three methods and one deliberate exit from them:
 
 - **two-role** — an **Architect** (one top-tier role: designs, writes the failing tests, plans, reviews) plus the implementer. Fewest sessions, one handoff artifact per feature.
 - **pipeline** — a **Designer / Test-Writer / Verifier** trio on three model tiers plus the implementer, with a gate between the tests and the implementation. Tiered cost, two handoff artifacts per feature.
 - **autopilot** — a feature crosses the whole wall **unattended**: a design interview at the start, a report and a draft PR at the end, and in between nine phases run as headless sessions chained by a deterministic **driver**. One model family designs and judges, another produces; four cross-family gates. Three artifacts per feature (ADR-0008).
+- **free** — no role, no phase, no wall, no TDD order, no roster model check: everything the kit knows about the project stays readable and binding, nothing of the method is imposed. For trying another way of working for a while — entered and left with `/switch-profile`, never chosen at init (ADR-0009).
 
-This repo is a **Claude Code plugin** (and its own marketplace): it gives you the templates, the three process chapters, and seven slash commands — `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/show-profile` prints the one currently active, `/fly` opens an autopilot flight, `/update-kit` realigns an installed project to a new kit version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
+This repo is a **Claude Code plugin** (and its own marketplace): it gives you the templates, the four process chapters, and seven slash commands — `/init-architecture` bootstraps the system in a project (and migrates older installs), `/switch-profile` changes the active profile between tasks, `/show-profile` prints the one currently active, `/fly` opens an autopilot flight, `/update-kit` realigns an installed project to a new kit version, `/update-models-roster` records a model change in the one place model names live, `/verify-kit` runs the kit's mechanical invariant check.
 
 > **Why this exists.** I've run this flow across many projects, and it's the setup that gives me the most **predictable, consistent** results. The README below is the approach, not just the files.
 
@@ -22,16 +23,18 @@ The kit's fix is structural, and it holds under every profile: the design side w
 
 What the profiles change is how the design side is staffed — and who supervises the handoffs:
 
-| | **two-role** | **pipeline** | **autopilot** |
-|---|---|---|---|
-| Design side | **Architect** — one role does design, tests, plan, review | **Designer** (spec) → **Test-Writer** (transcription) → **Verifier** (gate, plan, review) | **Designer** (interview) + four reviewer gates; the test inventory, tests and plan are produced across a model-family line |
-| Implementer | external code-gen agent (`AGENTS.md`) | same | same contract, flown headless (mid production tier) |
-| Handoff artifacts | `{feature}.md` (implementation plan) | `{feature}.testplan.md` (test-case inventory) + `{feature}.md` | `{feature}.adr.md` (design record) + the pipeline pair |
-| Sessions per feature | fewest | five fresh sessions | one interactive + eight headless, chained by the driver |
-| Supervision | the operator, between phases | the operator, between phases | the driver's gates and caps; the operator at the two ends only |
-| Worth it when | small or low-stakes changes | code that holds real data | features you can fully specify up front and want flown while you do something else |
+| | **two-role** | **pipeline** | **autopilot** | **free** |
+|---|---|---|---|---|
+| Design side | **Architect** — one role does design, tests, plan, review | **Designer** (spec) → **Test-Writer** (transcription) → **Verifier** (gate, plan, review) | **Designer** (interview) + four reviewer gates; the test inventory, tests and plan are produced across a model-family line | none — no role is bound |
+| Implementer | external code-gen agent (`AGENTS.md`) | same | same contract, flown headless (mid production tier) | none — `AGENTS.md` is a symlink to `CLAUDE.md`, the contract parked |
+| Handoff artifacts | `{feature}.md` (implementation plan) | `{feature}.testplan.md` (test-case inventory) + `{feature}.md` | `{feature}.adr.md` (design record) + the pipeline pair | none written; existing ones inert |
+| Sessions per feature | fewest | five fresh sessions | one interactive + eight headless, chained by the driver | whatever the method under test uses |
+| Supervision | the operator, between phases | the operator, between phases | the driver's gates and caps; the operator at the two ends only | none from the kit |
+| Worth it when | small or low-stakes changes | code that holds real data | features you can fully specify up front and want flown while you do something else | trying another way of working for a while |
 
 The selection criterion is the **stakes of the work** versus the friction the profile imposes: five fresh sessions and two artifacts per feature earn their keep on code that matters, and cost more than they return on a quick fix; an unattended flight earns its keep when the interview can front-load every decision — nobody attends the later phases, so an ambiguity that surfaces mid-flight is a bounce or a stop, never a question. That judgement changes task by task — so switching is a routine, bidirectional operation (`/switch-profile`), not a migration.
+
+The fourth column is deliberately empty of method: **free** staffs no design side and supervises nothing. It exists for the stretch of time in which you want to try a different working method — with Claude Code, with another agent CLI — on the same project, without uninstalling the kit: the project facts, the shell below line 1 of `CLAUDE.md` and the other three chapters (as reference material, applied only when you ask) stay in place, `.ai/plans/` goes inert and is never written, and under it `AGENTS.md` is a symlink to `CLAUDE.md`, so every tool reads one instruction file. The implementer contract `AGENTS.md` normally holds is parked, versioned, at `.ai/AGENTS.parked.md` and put back when you switch out (ADR-0009).
 
 **Why three design roles in the pipeline?** "Writing the tests" packs two very different jobs together: *deciding what to test* — edge cases, failure modes, exact expected values — which is specification work where a weaker model silently makes worse decisions; and *transcribing those cases into code*, which is mechanical, bulky, and exactly what a cheaper model does well from a precise input. Splitting them means the scarce top-tier model is spent **only on the decisions that propagate**, while the bulk of the output tokens moves down-tier. The Verifier's gate is what keeps the cheap transcription honest — it checks the tests against the inventory the Designer wrote, so it's verification against a reference, not open judgment.
 
@@ -66,8 +69,8 @@ In a target project:
 | File | Role | Nature |
 |------|------|--------|
 | `CLAUDE.md` | The shell: line 1 imports the active process chapter; shared process sections + project overlay follow | **Process** shell + **facts** overlay |
-| `.ai/process/two-role.md`, `.ai/process/pipeline.md`, `.ai/process/autopilot.md` | The roles-and-phases contract of each profile — all installed, so switching is offline | **Process** — ships verbatim, never edited |
-| `AGENTS.md` | Implementer's contract — profile-agnostic, names its counterpart neutrally | **Process** — agnostic, reusable as-is |
+| `.ai/process/two-role.md`, `.ai/process/pipeline.md`, `.ai/process/autopilot.md`, `.ai/process/free.md` | The roles-and-phases contract of each profile (`free.md`: the chapter that binds none) — all installed, so switching is offline | **Process** — ships verbatim, never edited |
+| `AGENTS.md` | Implementer's contract — profile-agnostic, names its counterpart neutrally. Under `free`: a symlink to `CLAUDE.md`, the contract parked at `.ai/AGENTS.parked.md` | **Process** — agnostic, reusable as-is |
 | `.ai/PROJECT_ARCHITECTURE.md` | Stack, toolchain, model roster, API contract, directory map | **Facts** — specific to one project |
 | `.ai/kit.json` | The kit manifest: which profile is active (and which kit version installed it) | **Manifest** — machine-readable, two fields |
 | `.ai/templates/test_plan_template.md` | Design side → transcription handoff: the test-case inventory (gated profiles) | **Process** |
@@ -90,6 +93,7 @@ Architect                                     Implementer
 (two-role chapter, via CLAUDE.md)             (AGENTS.md)
 ─────────────────────────────────             ───────────────────────
 1. Analyze the requirement
+   (a named tracker issue → in progress first)
 2. Write failing tests, verify RED
 3. Write the implementation plan
    {f}.md ──────────────────────────────────► 4. Read the plan
@@ -106,6 +110,7 @@ Designer                   Test-Writer                 Verifier                 
 (chapter, Phase 1)         (chapter, Phase 2)          (chapter, Phases 3+5)         (AGENTS.md, Phase 4)
 ──────────────────         ────────────────────        ───────────────────           ───────────────────
 1. Analyze requirement
+   (issue → in progress)
 2. Fix signatures, write
    test-case inventory
    {f}.testplan.md ──────► 3. Transcribe tests,
@@ -125,7 +130,7 @@ Designer                   Test-Writer                 Verifier                 
 
 ```
 Operator ──► /fly {feature} — Phase 1: design interview (Designer, interactive)
-             {f}.adr.md · branch from the base branch · issue → in progress · driver launched
+             issue → in progress · {f}.adr.md · branch from the base branch · driver launched
                                  │  unattended from here — headless sessions chained by the driver
   ┌──────────────────────────────▼────────────────────────────────────────────┐
   │ 2 TestPlan Designer ──► {f}.testplan.md (DRAFT)                           │
@@ -145,9 +150,11 @@ Operator ──► /fly {feature} — Phase 1: design interview (Designer, inter
 
 The intelligence stays in the verdicts, not the plumbing: reviewers emit routed verdicts (`{verdict, route, notes}`), and the **driver** — a deterministic script, `bin/autopilot-driver.sh` — dispatches, counts, and stops. Re-entry always passes the gate again: an amended artifact never skips its judge — the driver refuses to enter any phase, relaunches included, whose artifacts' state does not justify it (entering the final review demands the driver's own **acceptance stamp** for the implementation phase — an empty commit, written only after every check on that phase passed, whose `Autopilot-Green` trailer names the accepted commit as its own parent; the trailer key is reserved: a phase commit carrying it fails the attempt, and the stamp is read back with `git interpret-trailers`, so a lookalike line in prose or in the Log proves nothing. The stamp must be reachable from `HEAD` through commits that touched nothing but the two flight artifacts — later Log entries never consume the proof, one code commit past it does: implementation cannot be skipped by re-entry, nor ridden across code the driver never accepted. The Log reader stays bounded by design, models fenced blocks and HTML comments (opaque: pasted command output goes inside a fence), and *refuses* what it does not model — raw HTML, a container left open, a second Log heading, any section after the Log — with a documented repair for each). One family designs and judges (phases 1, 3, 5, 7, 9), the other produces (2, 4, 6, 8) — no artifact is judged by the family that produced it. The hard wall itself is **measured, not assumed**: after every attempt the driver checks the phase's write-set (the git diff of what it actually touched) against an edge per phase — reviewers write only the two flight artifacts, the TestPlan Designer only the testplan, the Handoff Planner only the plan and the testplan, the Test Writer only test paths and the testplan, the Implementer never a test path nor the plan or design record it is judged against — with the project's test paths recorded in the versioned `.ai/wall.env` (fail-closed: no wall, no flight; a violating attempt is reset and retried, its edits never survive, and a path git has to quote is refused rather than guessed; git's index-masking bits, which would blind the measurement itself, are refused outright at takeoff and at every acceptance). The wall's guarantee carries a declared boundary: it stops a phase that strays out of its role — an actively adversarial session with a shell is a declared residual class, backstopped by the harness sandbox, the draft-PR promotion, and your CI (ADR-0008). Before real work, every headless phase passes a **preflight**: read a driver-written nonce file and open the reply with its content — unforgeable proof its tools work, since the nonce is nowhere in the prompt (fail → 2 retries → the recorded substitution ladder → the operator). A stopped flight pushes nothing: state stays on disk, the dormant interview session presents the exact blocking point, and you amend, relaunch, or abort. Terminal states are three and each is honest: **DONE** (pushed, draft PR open), **PUSHED** (pushed but the PR could not be opened — the report hands you the compiled body and the remaining steps), **STOPPED** (nothing pushed). What gets published is the commit the final review actually judged: before the push the driver re-checks branch, clean tree, and that both `HEAD` and the branch ref still are that exact commit, then pushes it by object — anything else stops the flight. Headless sessions run guarded by default — codex in its workspace-write sandbox, claude under your Claude Code sandbox with auto-accepted edits; a permission bypass exists only as your recorded, per-project choice.
 
+Under every profile the design phase opens with the tracker: a feature that names a tracker issue moves it to *in progress* before any analysis begins — with tracker tools when the session has them, otherwise the user moves it before the work continues. No issue named, nothing to move.
+
 The artifacts in `.ai/plans/` are the **sole interfaces** between roles — if it's not in the artifact, the next role asks instead of guessing. Under the pipeline, run each phase in a **fresh session**: the Verifier judges the tests from the artifacts, not from the memory of having watched them being written.
 
-Switching profiles never destroys another profile's artifacts (**extended inertness**): `{feature}.md` plans are readable everywhere, `{feature}.testplan.md` files go **inert** under two-role — never rewritten, moved, or deleted — and come back to life on the way back to a profile that reads them; artifacts from other eras are historical records, never retrofitted (no design-record backfill, no retroactive `Gate` stamps).
+Switching profiles never destroys another profile's artifacts (**extended inertness**): `{feature}.md` plans are readable everywhere, `{feature}.testplan.md` files go **inert** under two-role — never rewritten, moved, or deleted — and come back to life on the way back to a profile that reads them; artifacts from other eras are historical records, never retrofitted (no design-record backfill, no retroactive `Gate` stamps). Under `free` every artifact is inert and no new one is written: `.ai/plans/` keeps meaning "produced by a profile with roles".
 
 ## Escalation (pipeline only)
 
@@ -185,19 +192,19 @@ npx skills add mattpocock/skills --skill grilling --skill grill-with-docs --skil
 
 `/init-architecture` first routes on what it finds — fresh project, re-init, or an older install (see below) — then walks: **inspect** the repo → **resolve** the decisions it can't derive (it asks you) → **scaffold** the files and wire the profile (line-1 import + `.ai/kit.json`) → **fill** them from real project facts → **self-check** → **report**. The only point that needs you is the decisions phase.
 
-When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter), `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, and `.ai/kit.json` filled for your project, all three chapters in `.ai/process/` and the two per-feature templates in `.ai/templates/` (all committed — the process runs offline, without the plugin), with `.ai/plans/` ready for the first handoff.
+When it finishes you'll have `CLAUDE.md` (importing the chosen profile's chapter), `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`, and `.ai/kit.json` filled for your project, all four chapters in `.ai/process/` and the two per-feature templates in `.ai/templates/` (all committed — the process runs offline, without the plugin), with `.ai/plans/` ready for the first handoff.
 
 > The commands live in the plugin, not in your repo — canonically namespaced (`/tdd-red-handoff:init-architecture`); the kit's docs use the short names. When a new kit version ships, update the plugin from the plugin manager (`/plugin`), then run `/update-kit` in each project: it realigns the installed chapters and per-feature templates and stamps `kit.json`'s `kitVersion`, never touching the docs you filled. Contributors can run a checkout directly with `claude --plugin-dir <path-to-checkout>`.
 
 ### Switching profiles
 
 ```bash
-/switch-profile two-role      # or: pipeline · autopilot
+/switch-profile two-role      # or: pipeline · autopilot · free
 ```
 
-Not sure which profile a project is on? `/show-profile` prints it — read-only: it checks the triad agrees and reports drift instead of guessing.
+Not sure which profile a project is on? `/show-profile` prints it — read-only: it checks the triad agrees and reports drift instead of guessing (under `free`, it also reports where the implementer contract is parked).
 
-The switch is mechanical, offline, and lossless: all chapters are already installed, so it rewrites exactly **two things** — line 1 of `CLAUDE.md` and the `profile` field of `.ai/kit.json` — and touches nothing else. Two safeguards: when switching **to a profile with no role that continues an in-flight testplan** (today: two-role, and autopilot — a flight starts from a fresh interview and never adopts a half-done testplan), any testplan still **in flight** (`Status` of `DRAFT`, `READY`, `RED`, or `REJECTED(n)`) makes the command stop and ask for explicit confirmation — that's specification work the destination profile would orphan. And leaving autopilot while a driver reports a **running flight** refuses outright — stop or finish the flight first; a `STOPPED` or `PUSHED` flight asks explicit confirmation, because switching abandons it (its artifacts go inert — a feature with a sibling `{feature}.adr.md` design record is autopilot's under every profile). Switching *to* pipeline never blocks: it revives inert pipeline testplans (a feature with a sibling design record stays autopilot's). Switching happens between tasks, so the refusals should be rare.
+The switch is mechanical, offline, and lossless: all chapters are already installed, so it rewrites exactly **two things** — line 1 of `CLAUDE.md` and the `profile` field of `.ai/kit.json` — and touches nothing else, with one addition when **free** is at either end: entering it moves `AGENTS.md` (a tracked move, so it stays versioned) to `.ai/AGENTS.parked.md` and recreates `AGENTS.md` as a symlink to `CLAUDE.md`; leaving it removes the symlink and moves the parked file back. Both directions fail closed — a parked file or a symlink already present stops the entry, a missing parked file stops the exit, and the kit never regenerates `AGENTS.md` from the template on that path — and `verify-kit`'s `free-shape` check reports a half-done switch, in either direction, as a FAIL. Two safeguards: when switching **to a profile with no role that continues an in-flight testplan** (today: two-role, autopilot — a flight starts from a fresh interview and never adopts a half-done testplan — and free, which has no roles at all), any testplan still **in flight** (`Status` of `DRAFT`, `READY`, `RED`, or `REJECTED(n)`) makes the command stop and ask for explicit confirmation — that's specification work the destination profile would orphan. And leaving autopilot while a driver reports a **running flight** refuses outright — stop or finish the flight first; a `STOPPED` or `PUSHED` flight asks explicit confirmation, because switching abandons it (its artifacts go inert — a feature with a sibling `{feature}.adr.md` design record is autopilot's under every profile). Switching *to* pipeline never blocks: it revives inert pipeline testplans (a feature with a sibling design record stays autopilot's). Switching happens between tasks, so the refusals should be rare.
 
 Flying a feature under autopilot, once the profile is active and the production-role roster rows are recorded:
 
@@ -221,7 +228,7 @@ Don't re-init a project that already runs the kit: the filled facts are the expe
 
 Five things inspection can't settle, so the command stops and asks:
 
-1. **Profile** — which process contract the first task runs on: **two-role**, **pipeline** or **autopilot**. All three chapters are installed either way; `/switch-profile` changes this per task later.
+1. **Profile** — which process contract the first task runs on: **two-role**, **pipeline** or **autopilot**. All four chapters are installed either way, but **free** is not offered here — a fresh project starts on a method; `/switch-profile` changes this per task later.
 2. **Architecture model** — pick one, applied identically across all three files:
    - **A — Flat MVCS** · single app-wide MVC + Client/Service layer (the default)
    - **B — Domain-partitioned** · split by domain, each re-applying MVCS internally (larger systems)
@@ -265,7 +272,7 @@ The process chapters in `.ai/process/` are **not** templates: they carry no mark
 
 And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile`, the `CLAUDE.md` line-1 import, and the chapter filename must name the same profile. `/switch-profile` is the only procedure that changes it.
 
-> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. The script ships inside the plugin, and `/verify-kit` runs it from there — no kit-repo checkout needed in a target project. With `-p <plugin-root>` (the plugin commands pass `${CLAUDE_PLUGIN_ROOT}`) target mode also verifies **install integrity**: the five installed kit files byte-identical to the plugin's copies, and the `kitVersion` stamp equal to the plugin's version — so `/init-architecture`, `/switch-profile` and `/update-kit` end on a check that compares the install against the payload that produced it. Without `-p` those checks are listed under NOT CHECKED.
+> These are enforced mechanically: `bin/verify-kit.sh` (also wrapped as `/verify-kit`) checks the greppable invariants — including the triad and the confinement of phase numbers to the chapters — and reports three states: PASS, FAIL, and **NOT CHECKED** for what a grep cannot decide (the layer map matching the real tree, vocabulary used *correctly*, the secrets boundary being *true*). Green means the mechanical checks pass, not that everything is verified. The script ships inside the plugin, and `/verify-kit` runs it from there — no kit-repo checkout needed in a target project. With `-p <plugin-root>` (the plugin commands pass `${CLAUDE_PLUGIN_ROOT}`) target mode also verifies **install integrity**: the six installed kit files byte-identical to the plugin's copies, and the `kitVersion` stamp equal to the plugin's version — so `/init-architecture`, `/switch-profile` and `/update-kit` end on a check that compares the install against the payload that produced it. Without `-p` those checks are listed under NOT CHECKED.
 
 ---
 
@@ -277,6 +284,7 @@ And one rule the profiles add: the **profile triad** — `.ai/kit.json` `profile
     two-role.md                   # Architect + Implementer — roles & phases, ships verbatim
     pipeline.md                   # Designer / Test-Writer / Verifier + Implementer — ships verbatim
     autopilot.md                  # the unattended nine-phase flight — ships verbatim (ADR-0008)
+    free.md                       # no role, no phase, no wall — the deliberate exit, ships verbatim (ADR-0009)
   templates/
     CLAUDE.template.md            # the shell: line-1 profile import + shared sections + overlay
     AGENTS.template.md
@@ -291,13 +299,17 @@ commands/                         # served by the plugin — never installed int
   fly.md                          # <feature> — autopilot phase 1: the interview, then launch the driver
   init-architecture.md            # bootstrap; absorbs the legacy-kit migration as its appendix
   show-profile.md                 # read-only — print the active profile from the triad
-  switch-profile.md               # <two-role|pipeline|autopilot> — rewrites the import line + kit.json
+  switch-profile.md               # <two-role|pipeline|autopilot|free> — rewrites the import line + kit.json
+                                  # (+ parks/restores AGENTS.md when free is at either end)
   update-kit.md                   # realign installed chapters/templates to the plugin version
   update-models-roster.md         # record a model change in the roster (the only concrete-name location)
   verify-kit.md                   # run bin/verify-kit.sh and report its three-state output
 bin/
   verify-kit.sh                   # the kit's mechanical invariant check (kit-repo + target modes;
                                   # -p <plugin-root> adds the install-integrity checks)
+tests/
+  verify-kit/run.sh               # verify-kit's behavior suite: disposable target fixtures, the free-shape check
+  driver/                         # the autopilot driver's behavior suite and mutation table
   autopilot-driver.sh             # the flight driver: dispatch, preflight, write-set wall, counters, git/PR ribbon
 ```
 

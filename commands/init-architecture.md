@@ -39,9 +39,9 @@ project facts, and are never edited — here or later.
 
 - Check the plugin's payload: `${CLAUDE_PLUGIN_ROOT}/.ai/templates/` has `CLAUDE.template.md`,
   `AGENTS.template.md`, `PROJECT_ARCHITECTURE.template.md`, `plan_template.md`,
-  `test_plan_template.md`, and `${CLAUDE_PLUGIN_ROOT}/.ai/process/` has **all three** chapters —
-  `two-role.md`, `pipeline.md`, `autopilot.md`. If any is missing the installation is broken: STOP and tell the user to
-  reinstall the plugin.
+  `test_plan_template.md`, and `${CLAUDE_PLUGIN_ROOT}/.ai/process/` has **all four** chapters —
+  `two-role.md`, `pipeline.md`, `autopilot.md`, `free.md`. If any is missing the installation is
+  broken: STOP and tell the user to reinstall the plugin.
 - Route on the live docs (`CLAUDE.md`, `AGENTS.md`, `.ai/PROJECT_ARCHITECTURE.md`):
   - **None exist** → fresh init: continue with Phase 1.
   - **They exist and `.ai/kit.json` exists** → re-init: ask whether to update in place or abort.
@@ -80,8 +80,10 @@ Present the choices that inspection **cannot** settle, and wait for the user. Do
    its first flight also needs the production-role roster rows, `/fly`'s machine binding, and
    the interview skills `grilling` + `grill-with-docs` + `domain-modeling` — required
    dependencies, checked by `/fly`).
-   All three chapters are installed either way, and `/switch-profile`
-   changes this per task later — this only sets the starting value.
+   All four chapters are installed either way — the fourth, `free` (no role, no phase, no
+   wall, no TDD order), is **not offered here**: a fresh project starts on a method, and
+   `free` is a per-task deviation from it, entered later with `/switch-profile free`.
+   `/switch-profile` changes the profile per task later — this only sets the starting value.
 2. **Architecture model** — the `[[DECISION A/B/C]]` shared by CLAUDE.md and AGENTS.md:
    **A** flat MVCS · **B** domain-partitioned (MVCS within each domain) · **C** other.
    Recommend one from the Phase-1 tree shape, but let the user decide. **Apply the same choice
@@ -103,7 +105,7 @@ own files):
 mkdir -p .ai/plans .ai/process .ai/templates
 # process chapters + per-feature templates: installed into the project (committed),
 # so switching profile and writing plans work offline, without the plugin
-cp "${CLAUDE_PLUGIN_ROOT}"/.ai/process/two-role.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/pipeline.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/autopilot.md .ai/process/
+cp "${CLAUDE_PLUGIN_ROOT}"/.ai/process/two-role.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/pipeline.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/autopilot.md "${CLAUDE_PLUGIN_ROOT}"/.ai/process/free.md .ai/process/
 cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/plan_template.md "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/test_plan_template.md .ai/templates/
 # doc templates: instantiated, not installed — their filled copies BECOME the live docs
 cp "${CLAUDE_PLUGIN_ROOT}"/.ai/templates/CLAUDE.template.md               ./CLAUDE.md
@@ -137,8 +139,9 @@ Then wire the profile:
    `/fly`, which writes it before the first flight.
 
 `plan_template.md` and `test_plan_template.md` are the only templates **installed** into the
-project's `.ai/templates/` — the roles reference them per feature at runtime. The three doc
-templates are not installed: their filled copies are the live docs.
+project's `.ai/templates/` — the roles reference them per feature at runtime. With the four
+chapters they are the six installed kit files `/update-kit` realigns. The three doc templates
+are not installed: their filled copies are the live docs.
 
 ## Phase 4 — Fill (the work)
 
